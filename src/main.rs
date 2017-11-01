@@ -30,8 +30,8 @@ fn main() {
                 connection.send(line).unwrap();
             }
         });
-        |message| {
-            println!("Received: {}", message);
+        |message: ws::Message| {
+            println!("{}: {}", nick, message.into_text().unwrap().trim());
             Ok(())
         }
     }).unwrap();
