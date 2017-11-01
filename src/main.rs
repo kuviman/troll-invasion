@@ -1,8 +1,11 @@
 extern crate ws;
+extern crate env_logger;
 
 const PORT: u16 = 8008;
 
 fn main() {
+    env_logger::init().unwrap();
+
     std::thread::spawn(|| {
         use std::cell::RefCell;
         let connections: RefCell<Vec<ws::Sender>> = RefCell::new(Vec::new());
@@ -20,14 +23,18 @@ fn main() {
     println!("nick: ");
     let mut nick = String::new();
     std::io::stdin().read_line(&mut nick).unwrap();
-    let nick = nick.trim();
+    let nick = nick.trim().to_owned();
     ws::connect(format!("ws://play.kuviman.com:{}", PORT), |connection| {
-        connection.send(format!("- {} connected", nick)).unwrap();
-        std::thread::spawn(move || {
-            loop {
-                let mut line = String::new();
-                std::io::stdin().read_line(&mut line).unwrap();
-                connection.send(line).unwrap();
+        std::thread::spawn({
+            let nick = nick.clone();
+            move || {
+                std::thread::sleep(std::time::Duration::from_millis(500));
+                connection.send(format!("- {} connected", nick)).unwrap();
+                loop {
+                    let mut line = String::new();
+                    std::io::stdin().read_line(&mut line).unwrap();
+                    connection.send(line).unwrap();
+                }
             }
         });
         |message: ws::Message| {

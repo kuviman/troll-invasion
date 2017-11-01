@@ -5,4 +5,6 @@ authors = ["kuviman <kuviman@gmail.com>"]
 
 [dependencies]
 ws = "*"
+log = "*"
+env_logger = "*"
 "codevisual" = { path = "codevisual" }
