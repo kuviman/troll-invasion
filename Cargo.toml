@@ -1,0 +1,7 @@
+[package]
+name = "troll-invasion"
+version = "0.1.0"
+authors = ["kuviman <kuviman@gmail.com>"]
+
+[dependencies]
+"codevisual" = { path = "codevisual" }
