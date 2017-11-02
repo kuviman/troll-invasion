@@ -18,7 +18,9 @@ fn server(port: u16) {
             loop {
                 use std::io::BufRead;
                 line.clear();
-                jar_out.read_line(&mut line).unwrap();
+                if jar_out.read_line(&mut line).unwrap() == 0 {
+                    break;
+                }
                 let line = line.trim_right_matches('\n');
                 eprintln!("> {}", line);
                 for connection in connections.lock().unwrap().iter() {
@@ -34,7 +36,10 @@ fn server(port: u16) {
             let message = message.into_text().unwrap();
             eprintln!("< {}", message);
             use std::io::Write;
-            jar_in.borrow_mut().write(message.as_bytes()).unwrap();
+            let mut jar_in = jar_in.borrow_mut();
+            jar_in.write(message.as_bytes()).unwrap();
+            jar_in.write("\n".as_bytes()).unwrap();
+            jar_in.flush().unwrap();
             Ok(())
         }
     }).unwrap();
@@ -59,7 +64,7 @@ fn client(server: &str, port: u16) {
                     loop {
                         let mut line = String::new();
                         std::io::stdin().read_line(&mut line).unwrap();
-                        connection.send(format!("{}: {}", nick, line.trim())).unwrap();
+                        connection.send(format!("{}:{}", nick, line.trim())).unwrap();
                     }
                 });
 
