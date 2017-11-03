@@ -312,8 +312,16 @@ impl codevisual::Game for TrollInvasionClient {
 
     fn handle_event(&mut self, event: codevisual::Event) {
         match event {
-            codevisual::Event::KeyDown { key: codevisual::Key::Space } => {
-                self.send("ready");
+            codevisual::Event::KeyDown { key } => {
+                match key {
+                    codevisual::Key::Space => {
+                        self.send("ready");
+                    }
+                    codevisual::Key::S => {
+                        self.send("next phase");
+                    }
+                    _ => {}
+                }
             }
             codevisual::Event::MouseDown { button: codevisual::MouseButton::Left, position: mut pos } => {
                 pos.x /= self.app.window().get_size().x as f64;
