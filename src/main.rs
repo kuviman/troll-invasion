@@ -176,6 +176,8 @@ struct TrollInvasionClient {
     map: Vec<Vec<Option<Cell>>>,
     material: codevisual::Material,
     app: Rc<codevisual::Application>,
+    current_player: String,
+    selected_cell: Option<Vec2<usize>>,
 }
 
 impl codevisual::Game for TrollInvasionClient {
@@ -226,7 +228,9 @@ impl codevisual::Game for TrollInvasionClient {
             nick,
             connection,
             receiver,
+            current_player: String::new(),
             map: Vec::new(),
+            selected_cell: None,
             material: codevisual::Material::new(app.ugli_context(), (), (), include_str!("shader.glsl")),
         }
     }
@@ -241,13 +245,27 @@ impl codevisual::Game for TrollInvasionClient {
                     }
                     self.map[index] = line;
                 }
+                UpgradePhase => {
+                    self.selected_cell = None;
+                }
+                SelectCell { row, col } => {
+                    self.selected_cell = Some(vec2(row, col));
+                }
+                Turn { nick } => {
+                    self.current_player = nick;
+                }
                 _ => {}
             }
         }
     }
 
     fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
-        ugli::clear(framebuffer, Some(Color::BLACK), None);
+        ugli::clear(framebuffer,
+                    Some(if self.nick == self.current_player {
+                        Color::rgb(0.0, 0.3, 0.0)
+                    } else {
+                        Color::BLACK
+                    }), None);
         if !self.map.is_empty() {
             let width = self.map[0].len();
             let height = self.map.len();
@@ -264,7 +282,12 @@ impl codevisual::Game for TrollInvasionClient {
                         let p2 = conv(vec2((j + 1) as f32, (i + 1) as f32) - OFF);
                         let radius = min((p1.x - p2.x).abs(), (p1.y - p2.y).abs()) / 2.5;
                         let center = (p1 + p2) / 2.0;
-                        self.quad(framebuffer, p1, p2, Color::rgb(0.2, 0.2, 0.2));
+                        self.quad(framebuffer, p1, p2,
+                                  if self.selected_cell.map_or(false, |pos| pos == vec2(i, j)) {
+                                      Color::rgb(0.5, 0.5, 0.5)
+                                  } else {
+                                      Color::rgb(0.2, 0.2, 0.2)
+                                  });
                         if let Cell::Populated { count, owner } = cell {
                             let color = match owner {
                                 'A' => Color::rgb(1.0, 0.0, 0.0),
