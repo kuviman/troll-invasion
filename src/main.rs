@@ -4,6 +4,7 @@ extern crate argparse;
 #[macro_use]
 extern crate lazy_static;
 extern crate regex;
+extern crate conrod;
 
 #[macro_use]
 extern crate codevisual;

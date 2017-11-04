@@ -10,4 +10,5 @@ log = "*"
 env_logger = "*"
 lazy_static = "*"
 regex = "*"
-"codevisual" = { path = "codevisual" }
+conrod = "*"
+codevisual = { path = "codevisual" }
