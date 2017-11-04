@@ -11,4 +11,5 @@ env_logger = "*"
 lazy_static = "*"
 regex = "*"
 conrod = "*"
+rusttype = "*"
 codevisual = { path = "codevisual" }

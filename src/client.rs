@@ -17,6 +17,11 @@ pub struct TrollInvasion {
     selected_cell: Option<Vec2<usize>>,
     hovered_cell: Option<Vec2<usize>>,
     matrix: std::cell::Cell<Mat4<f32>>,
+    ui: conrod::Ui,
+    ui_renderer: UiRenderer,
+    ready_button: conrod::widget::Id,
+    skip_button: conrod::widget::Id,
+    list: conrod::widget::Id,
 }
 
 impl codevisual::Game for TrollInvasion {
@@ -62,6 +67,11 @@ impl codevisual::Game for TrollInvasion {
                 }).unwrap();
             }
         });
+        let mut ui = conrod::UiBuilder::new([640.0, 480.0]).build();
+        ui.fonts.insert(rusttype::FontCollection::from_bytes(include_bytes!("../font.ttf") as &[u8]).into_font().unwrap());
+        let skip_button = ui.widget_id_generator().next();
+        let ready_button = ui.widget_id_generator().next();
+        let list = ui.widget_id_generator().next();
         Self {
             hovered_cell: None,
             app: app.clone(),
@@ -82,6 +92,11 @@ impl codevisual::Game for TrollInvasion {
                 }
                 vs
             }),
+            ui,
+            skip_button,
+            ready_button,
+            list,
+            ui_renderer: UiRenderer::new(app),
         }
     }
 
@@ -107,14 +122,16 @@ impl codevisual::Game for TrollInvasion {
                 _ => {}
             }
         }
+        let size = self.app.window().get_size();
+        self.ui.handle_event(conrod::event::Input::Resize(size.x as u32, size.y as u32));
     }
 
     fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
         ugli::clear(framebuffer,
                     Some(if self.nick == self.current_player {
-                        Color::rgb(0.0, 0.3, 0.0)
+                        Color::rgb(0.0, 0.1, 0.0)
                     } else {
-                        Color::BLACK
+                        Color::rgb(0.1, 0.0, 0.0)
                     }), None);
         if !self.map.is_empty() {
             let (width, height) = (self.map[0].len() as f32 / 3.0.sqrt(), self.map.len() as f32);
@@ -160,16 +177,59 @@ impl codevisual::Game for TrollInvasion {
                 }
             }
         }
+        use conrod::{Widget, Positionable, Sizeable, Labelable, Colorable};
+        let mut news = Vec::new();
+        {
+            let ui = &mut self.ui.set_widgets();
+            for _ in conrod::widget::Button::new()
+                .mid_left_with_margin_on(ui.window, 50.0)
+                .w_h(150.0, 50.0)
+                .label("READY")
+                .set(self.ready_button, ui) {
+                news.push("ready");
+            }
+            for _ in conrod::widget::Button::new()
+                .down_from(self.ready_button, 10.0)
+                .w_h(150.0, 50.0)
+                .label("Next phase")
+                .set(self.skip_button, ui) {
+                news.push("next phase");
+            }
+            self.ui_renderer.render(framebuffer, ui.draw());
+        }
+        for new in news {
+            self.send(new);
+        }
     }
 
     fn handle_event(&mut self, event: codevisual::Event) {
+        let window_size = self.app.window().get_size();
+        if let Some(event) = match event {
+            codevisual::Event::MouseMove { position } => {
+                Some(conrod::event::Input::Motion(conrod::input::Motion::MouseCursor {
+                    x: position.x - window_size.x as f64 / 2.0,
+                    y: window_size.y as f64 / 2.0 - position.y,
+                }))
+            }
+            codevisual::Event::MouseDown { button, .. } => {
+                Some(conrod::event::Input::Press(conrod::input::Button::Mouse(match button {
+                    codevisual::MouseButton::Left => conrod::input::MouseButton::Left,
+                    codevisual::MouseButton::Middle => conrod::input::MouseButton::Middle,
+                    codevisual::MouseButton::Right => conrod::input::MouseButton::Right,
+                })))
+            }
+            codevisual::Event::MouseUp { button, .. } => {
+                Some(conrod::event::Input::Release(conrod::input::Button::Mouse(match button {
+                    codevisual::MouseButton::Left => conrod::input::MouseButton::Left,
+                    codevisual::MouseButton::Middle => conrod::input::MouseButton::Middle,
+                    codevisual::MouseButton::Right => conrod::input::MouseButton::Right,
+                })))
+            }
+            _ => None,
+        } {
+            self.ui.handle_event(event);
+        }
         match event {
-            codevisual::Event::KeyDown { key: codevisual::Key::Space } => {
-                self.send("ready");
-            }
-            codevisual::Event::KeyDown { key: codevisual::Key::S } => {
-                self.send("next phase");
-            }
             codevisual::Event::MouseDown { button: codevisual::MouseButton::Left, position: pos } => {
                 if !self.map.is_empty() {
                     if let Some(Vec2 { x, y }) = self.find_pos(vec2(pos.x as f32, pos.y as f32)) {

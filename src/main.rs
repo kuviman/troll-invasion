@@ -5,6 +5,7 @@ extern crate argparse;
 extern crate lazy_static;
 extern crate regex;
 extern crate conrod;
+extern crate rusttype;
 
 #[macro_use]
 extern crate codevisual;
@@ -15,6 +16,9 @@ pub ( crate ) use codevisual::ugli;
 mod server;
 mod client;
 mod console_client;
+mod ui_renderer;
+
+pub ( crate ) use ui_renderer::UiRenderer;
 
 enum ServerMessage {
     ReadyStatus {
