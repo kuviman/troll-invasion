@@ -15,6 +15,7 @@ pub struct TrollInvasion {
     app: Rc<codevisual::Application>,
     current_player: String,
     selected_cell: Option<Vec2<usize>>,
+    hovered_cell: Option<Vec2<usize>>,
     matrix: std::cell::Cell<Mat4<f32>>,
 }
 
@@ -62,6 +63,7 @@ impl codevisual::Game for TrollInvasion {
             }
         });
         Self {
+            hovered_cell: None,
             app: app.clone(),
             nick,
             connection,
@@ -124,6 +126,12 @@ impl codevisual::Game for TrollInvasion {
                 for (j, cell) in line.iter().enumerate() {
                     if let Some(cell) = *cell {
                         let center = vec2((j as f32 + 0.5) / 3.0.sqrt(), i as f32 + 0.5);
+                        if Some(vec2(i, j)) == self.hovered_cell {
+                            self.hex(framebuffer,
+                                     center,
+                                     2.0 / 3.0,
+                                     Color::rgb(1.0, 1.0, 1.0));
+                        }
                         self.hex(framebuffer,
                                  center,
                                  2.0 / 3.0 - 0.05,
@@ -169,6 +177,9 @@ impl codevisual::Game for TrollInvasion {
                     }
                 }
             }
+            codevisual::Event::MouseMove { position: pos } => {
+                self.hovered_cell = self.find_pos(vec2(pos.x as f32, pos.y as f32));
+            }
             _ => {}
         }
     }
@@ -209,7 +220,7 @@ impl TrollInvasion {
                    uniforms!(u_radius: radius, u_pos: pos, u_color: color, u_matrix: self.matrix.get()),
                    ugli::DrawParameters {
                        depth_test: ugli::DepthTest::Off,
-                       blend_mode: ugli::BlendMode::Off,
+                       blend_mode: ugli::BlendMode::Alpha,
                        ..Default::default()
                    });
     }
