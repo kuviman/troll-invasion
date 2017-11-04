@@ -8,6 +8,7 @@ struct Vertex {
 pub struct TrollInvasion {
     nick: String,
     hex_geometry: ugli::VertexBuffer<Vertex>,
+    #[cfg(not(target_os = "emscripten"))]
     connection: Arc<Mutex<Option<ws::Sender>>>,
     receiver: std::sync::mpsc::Receiver<ServerMessage>,
     map: Vec<Vec<Option<GameCell>>>,
@@ -29,8 +30,11 @@ impl codevisual::Game for TrollInvasion {
 
     fn new(app: &Rc<codevisual::Application>, resources: Self::Resources) -> Self {
         let nick = NICK.lock().unwrap().clone();
+        #[cfg(not(target_os = "emscripten"))]
         let connection = Arc::new(Mutex::new(None));
         let (sender, receiver) = std::sync::mpsc::channel();
+        println!("{}", nick);
+        #[cfg(not(target_os = "emscripten"))]
         thread::spawn({
             let connection = connection.clone();
             let nick = nick.clone();
@@ -76,6 +80,7 @@ impl codevisual::Game for TrollInvasion {
             hovered_cell: None,
             app: app.clone(),
             nick,
+            #[cfg(not(target_os = "emscripten"))]
             connection,
             receiver,
             current_player: String::new(),
@@ -285,8 +290,11 @@ impl TrollInvasion {
                    });
     }
     fn send<S: std::borrow::Borrow<str>>(&mut self, message: S) {
-        if let Some(connection) = self.connection.lock().unwrap().as_ref() {
-            connection.send(format!("{}:{}", self.nick, message.borrow())).unwrap();
-        }
+        #[cfg(not(target_os = "emscripten"))]
+        {
+            if let Some(connection) = self.connection.lock().unwrap().as_ref() {
+                connection.send(format!("{}:{}", self.nick, message.borrow())).unwrap();
+            }
+        };
     }
 }

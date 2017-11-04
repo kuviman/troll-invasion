@@ -3,13 +3,17 @@ name = "troll-invasion"
 version = "0.1.0"
 authors = ["kuviman <kuviman@gmail.com>"]
 
+[workspace]
+members = [ "web-launch" ]
+
 [dependencies]
 argparse = "*"
-ws = "*"
 log = "*"
 env_logger = "*"
 lazy_static = "*"
-regex = "*"
 conrod = "*"
 rusttype = "*"
 codevisual = { path = "codevisual" }
+
+[target.'cfg(not(target_os = "emscripten"))'.dependencies]
+ws = "*"

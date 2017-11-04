@@ -1,9 +1,10 @@
+#[cfg(not(target_os = "emscripten"))]
 extern crate ws;
+#[cfg(not(target_os = "emscripten"))]
 extern crate env_logger;
 extern crate argparse;
 #[macro_use]
 extern crate lazy_static;
-extern crate regex;
 extern crate conrod;
 extern crate rusttype;
 
@@ -13,8 +14,10 @@ extern crate codevisual;
 pub ( crate ) use codevisual::prelude::*;
 pub ( crate ) use codevisual::ugli;
 
+#[cfg(not(target_os = "emscripten"))]
 mod server;
 mod client;
+#[cfg(not(target_os = "emscripten"))]
 mod console_client;
 mod ui_renderer;
 
@@ -108,6 +111,7 @@ lazy_static! {
 }
 
 fn main() {
+    #[cfg(not(target_os = "emscripten"))]
     env_logger::init().unwrap();
 
     let mut port: u16 = 8008;
@@ -127,20 +131,29 @@ fn main() {
         ap.parse_args_or_exit();
     }
 
-    if start_server {
-        if host.is_some() {
-            std::thread::spawn(move || { server::run(port) });
-        } else {
-            server::run(port);
-        }
-    } else if host.is_none() {
+    #[cfg(target_os = "emscripten")]
+    {
         host = Some(String::from("play.kuviman.com"));
+        nickname = Some(String::from("nickname"));
+    }
+    #[cfg(not(target_os = "emscripten"))]
+    {
+        if start_server {
+            if host.is_some() {
+                std::thread::spawn(move || { server::run(port) });
+            } else {
+                server::run(port);
+            }
+        } else if host.is_none() {
+            host = Some(String::from("play.kuviman.com"));
+        }
     }
     if let Some(host) = host {
         if start_server {
             std::thread::sleep(std::time::Duration::from_millis(500));
         }
         if console {
+            #[cfg(not(target_os = "emscripten"))]
             console_client::run(&host, port);
         } else {
             *HOST.lock().unwrap() = host;
