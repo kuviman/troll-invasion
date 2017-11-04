@@ -145,6 +145,9 @@ impl codevisual::Game for TrollInvasion {
             codevisual::Event::KeyDown { key: codevisual::Key::Space } => {
                 self.send("ready");
             }
+            codevisual::Event::KeyDown { key: codevisual::Key::S } => {
+                self.send("next phase");
+            }
             codevisual::Event::MouseDown { button: codevisual::MouseButton::Left, position: pos } => {
                 let pos = vec2((pos.x * 2.0 / self.app.window().get_size().x as f64 - 1.0) as f32,
                                (1.0 - pos.y * 2.0 / self.app.window().get_size().y as f64) as f32);
