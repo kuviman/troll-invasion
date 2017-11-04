@@ -1,7 +1,13 @@
 use ::*;
 
+#[derive(Vertex)]
+struct Vertex {
+    a_pos: Vec2<f32>,
+}
+
 pub struct TrollInvasion {
     nick: String,
+    hex_geometry: ugli::VertexBuffer<Vertex>,
     connection: Arc<Mutex<Option<ws::Sender>>>,
     receiver: std::sync::mpsc::Receiver<ServerMessage>,
     map: Vec<Vec<Option<GameCell>>>,
@@ -65,6 +71,15 @@ impl codevisual::Game for TrollInvasion {
             selected_cell: None,
             material: codevisual::Material::new(app.ugli_context(), (), (), include_str!("shader.glsl")),
             matrix: std::cell::Cell::new(Mat4::identity()),
+            hex_geometry: ugli::VertexBuffer::new_static(app.ugli_context(), {
+                let mut vs = Vec::new();
+                for i in 0..6 {
+                    vs.push(Vertex {
+                        a_pos: Vec2::rotated(vec2(0.0, 1.0), i as f32 / 6.0 * 2.0 * std::f32::consts::PI)
+                    });
+                }
+                vs
+            }),
         }
     }
 
@@ -100,23 +115,23 @@ impl codevisual::Game for TrollInvasion {
                         Color::BLACK
                     }), None);
         if !self.map.is_empty() {
-            let (width, height) = (self.map[0].len(), self.map.len());
-            self.matrix.set(Mat4::scale(vec3(1.0, -1.0, 1.0)) *
-                Mat4::translate(vec3(-1.0, -1.0, 0.0)) *
-                Mat4::scale(vec3(2.0 / width as f32, 2.0 / height as f32, 1.0)));
+            let (width, height) = (self.map[0].len() as f32 / 3.0.sqrt(), self.map.len() as f32);
+            let aspect = self.app.window().get_size().x as f32 / self.app.window().get_size().y as f32;
+            self.matrix.set(Mat4::scale_uniform(2.0 / max(width, height)) *
+                Mat4::scale(vec3(1.0 / aspect, -1.0, 1.0) * 0.8) *
+                Mat4::translate(vec3(-width / 2.0, -height / 2.0, 0.0)));
             for (i, line) in self.map.iter().enumerate() {
                 for (j, cell) in line.iter().enumerate() {
-                    const OFF: Vec2<f32> = Vec2 { x: 0.1, y: 0.1 };
                     if let Some(cell) = *cell {
-                        let center = vec2(j as f32 + 0.5, i as f32 + 0.5);
-                        self.quad(framebuffer,
-                                  vec2(j as f32, i as f32) + OFF,
-                                  vec2((j + 1) as f32, (i + 1) as f32) - OFF,
-                                  if self.selected_cell.map_or(false, |pos| pos == vec2(i, j)) {
-                                      Color::rgb(0.5, 0.5, 0.5)
-                                  } else {
-                                      Color::rgb(0.2, 0.2, 0.2)
-                                  });
+                        let center = vec2((j as f32 + 0.5) / 3.0.sqrt(), i as f32 + 0.5);
+                        self.hex(framebuffer,
+                                 center,
+                                 2.0 / 3.0 - 0.05,
+                                 if self.selected_cell.map_or(false, |pos| pos == vec2(i, j)) {
+                                     Color::rgb(0.5, 0.5, 0.5)
+                                 } else {
+                                     Color::rgb(0.2, 0.2, 0.2)
+                                 });
                         if let GameCell::Populated { count, owner } = cell {
                             let color = match owner {
                                 'A' => Color::rgb(1.0, 0.0, 0.0),
@@ -130,8 +145,7 @@ impl codevisual::Game for TrollInvasion {
                             for index in 0..count {
                                 let pos = center + Vec2::rotated(vec2(0.3, 0.0), (index as f32 / count as f32) * 2.0 * std::f32::consts::PI);
                                 let size = 0.05;
-                                let size = vec2(size, size);
-                                self.quad(framebuffer, pos + size, pos - size, color);
+                                self.hex(framebuffer, pos, size, color);
                             }
                         }
                     }
@@ -149,13 +163,10 @@ impl codevisual::Game for TrollInvasion {
                 self.send("next phase");
             }
             codevisual::Event::MouseDown { button: codevisual::MouseButton::Left, position: pos } => {
-                let pos = vec2((pos.x * 2.0 / self.app.window().get_size().x as f64 - 1.0) as f32,
-                               (1.0 - pos.y * 2.0 / self.app.window().get_size().y as f64) as f32);
-                let pos = self.matrix.get().inverse() * pos.extend(0.0).extend(1.0);
                 if !self.map.is_empty() {
-                    let row = clamp(pos.y as usize, 0, self.map.len());
-                    let col = clamp(pos.x as usize, 0, self.map[0].len());
-                    self.send(format!("{} {}", row, col));
+                    if let Some(Vec2 { x, y }) = self.find_pos(vec2(pos.x as f32, pos.y as f32)) {
+                        self.send(format!("{} {}", x, y));
+                    }
                 }
             }
             _ => {}
@@ -164,12 +175,38 @@ impl codevisual::Game for TrollInvasion {
 }
 
 impl TrollInvasion {
-    fn quad(&self, framebuffer: &mut ugli::Framebuffer, p1: Vec2<f32>, p2: Vec2<f32>, color: Color) {
+    fn find_pos(&self, pos: Vec2<f32>) -> Option<Vec2<usize>> {
+        let pos = vec2((pos.x * 2.0 / self.app.window().get_size().x as f32 - 1.0),
+                       (1.0 - pos.y * 2.0 / self.app.window().get_size().y as f32));
+        let pos = self.matrix.get().inverse() * pos.extend(0.0).extend(1.0);
+        let pos = vec2(pos.x, pos.y);
+        for (i, line) in self.map.iter().enumerate() {
+            for (j, cell) in line.iter().enumerate() {
+                if let Some(cell) = *cell {
+                    let center = vec2((j as f32 + 0.5) / 3.0.sqrt(), i as f32 + 0.5);
+                    let mut inside = true;
+                    for i in 0..6 {
+                        let p1 = self.hex_geometry[i].a_pos * 2.0 / 3.0 + center;
+                        let p2 = self.hex_geometry[(i + 1) % 6].a_pos * 2.0 / 3.0 + center;
+                        if Vec2::cross(p2 - p1, pos - p1) < 0.0 {
+                            inside = false;
+                            break;
+                        }
+                    }
+                    if inside {
+                        return Some(vec2(i, j));
+                    }
+                }
+            }
+        }
+        None
+    }
+    fn hex(&self, framebuffer: &mut ugli::Framebuffer, pos: Vec2<f32>, radius: f32, color: Color) {
         ugli::draw(framebuffer,
                    &self.material.ugli_program(),
-                   ugli::Quad::DRAW_MODE,
-                   &**ugli::quad(self.app.ugli_context()),
-                   uniforms!(p1: p1, p2: p2, u_color: color, u_matrix: self.matrix.get()),
+                   ugli::DrawMode::TriangleFan,
+                   &self.hex_geometry,
+                   uniforms!(u_radius: radius, u_pos: pos, u_color: color, u_matrix: self.matrix.get()),
                    ugli::DrawParameters {
                        depth_test: ugli::DepthTest::Off,
                        blend_mode: ugli::BlendMode::Off,

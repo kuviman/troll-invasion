@@ -1,9 +1,10 @@
 #ifdef VERTEX
+attribute vec2 a_pos;
 uniform mat4 u_matrix;
-attribute vec2 a_quad_pos;
-uniform vec2 p1, p2;
+uniform vec2 u_pos;
+uniform float u_radius;
 void main() {
-    gl_Position = u_matrix * (vec4(p1 + (p2 - p1) * a_quad_pos, 0.0, 1.0));
+    gl_Position = u_matrix * (vec4(a_pos * u_radius + u_pos, 0.0, 1.0));
 }
 #endif
 
