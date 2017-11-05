@@ -15,5 +15,9 @@ conrod = "*"
 rusttype = "*"
 codevisual = { path = "codevisual" }
 
+[target.'cfg(target_os = "emscripten")'.dependencies]
+web = { path = "codevisual/web" }
+troll-invasion-web = { path = "src/web" }
+
 [target.'cfg(not(target_os = "emscripten"))'.dependencies]
 ws = "*"

@@ -1,0 +1,12 @@
+[package]
+name = "troll-invasion-web"
+version = "0.1.0"
+authors = ["kuviman <kuviman@gmail.com>"]
+
+[build-dependencies]
+web_build = { path = "../../codevisual/web_build" }
+codevisual_static_web = { path = "../../codevisual/static_web" }
+
+[dependencies]
+prelude = { path = "../../codevisual/prelude" }
+web = { path = "../../codevisual/web" }

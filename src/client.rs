@@ -33,7 +33,16 @@ impl codevisual::Game for TrollInvasion {
         #[cfg(not(target_os = "emscripten"))]
         let connection = Arc::new(Mutex::new(None));
         let (sender, receiver) = std::sync::mpsc::channel();
-        println!("{}", nick);
+        #[cfg(target_os = "emscripten")]
+        {
+            let callback = web::Callback::from(move |addr: i32| {
+                let line = unsafe { std::ffi::CStr::from_ptr(addr as *mut _).to_string_lossy() };
+                sender.send(ServerMessage::parse(&line)).unwrap();
+            });
+            run_js! {
+                TrollInvasion.connect(&*HOST.lock().unwrap(), &*PORT.lock().unwrap(), &nick, callback);
+            }
+        }
         #[cfg(not(target_os = "emscripten"))]
         thread::spawn({
             let connection = connection.clone();
@@ -290,6 +299,10 @@ impl TrollInvasion {
                    });
     }
     fn send<S: std::borrow::Borrow<str>>(&mut self, message: S) {
+        #[cfg(target_os = "emscripten")]
+        run_js! {
+            TrollInvasion.send(message.borrow());
+        }
         #[cfg(not(target_os = "emscripten"))]
         {
             if let Some(connection) = self.connection.lock().unwrap().as_ref() {

@@ -10,6 +10,12 @@ extern crate rusttype;
 
 #[macro_use]
 extern crate codevisual;
+#[cfg(target_os = "emscripten")]
+#[macro_use]
+extern crate web;
+
+#[cfg(target_os = "emscripten")]
+extern crate troll_invasion_web;
 
 pub ( crate ) use codevisual::prelude::*;
 pub ( crate ) use codevisual::ugli;
@@ -111,6 +117,9 @@ lazy_static! {
 }
 
 fn main() {
+    #[cfg(target_os = "emscripten")]
+    web::run_script(troll_invasion_web::JS_SOURCE);
+
     #[cfg(not(target_os = "emscripten"))]
     env_logger::init().unwrap();
 
