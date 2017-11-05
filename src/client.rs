@@ -15,6 +15,7 @@ pub struct TrollInvasion {
     material: codevisual::Material,
     app: Rc<codevisual::Application>,
     current_player: String,
+    energy_left: Option<usize>,
     selected_cell: Option<Vec2<usize>>,
     hovered_cell: Option<Vec2<usize>>,
     matrix: std::cell::Cell<Mat4<f32>>,
@@ -22,7 +23,7 @@ pub struct TrollInvasion {
     ui_renderer: UiRenderer,
     ready_button: conrod::widget::Id,
     skip_button: conrod::widget::Id,
-    list: conrod::widget::Id,
+    current_status: conrod::widget::Id,
 }
 
 impl codevisual::Game for TrollInvasion {
@@ -84,7 +85,7 @@ impl codevisual::Game for TrollInvasion {
         ui.fonts.insert(rusttype::FontCollection::from_bytes(include_bytes!("../font.ttf") as &[u8]).into_font().unwrap());
         let skip_button = ui.widget_id_generator().next();
         let ready_button = ui.widget_id_generator().next();
-        let list = ui.widget_id_generator().next();
+        let current_status = ui.widget_id_generator().next();
         Self {
             hovered_cell: None,
             app: app.clone(),
@@ -109,8 +110,9 @@ impl codevisual::Game for TrollInvasion {
             ui,
             skip_button,
             ready_button,
-            list,
+            current_status,
             ui_renderer: UiRenderer::new(app),
+            energy_left: None,
         }
     }
 
@@ -132,6 +134,10 @@ impl codevisual::Game for TrollInvasion {
                 }
                 Turn { nick } => {
                     self.current_player = nick;
+                    self.energy_left = None;
+                }
+                EnergyLeft(energy) => {
+                    self.energy_left = Some(energy);
                 }
                 _ => {}
             }
@@ -191,6 +197,16 @@ impl codevisual::Game for TrollInvasion {
                 }
             }
         }
+
+        let current_status = if self.map.is_empty() {
+            String::from("Getting ready")
+        } else {
+            format!("{}'s turn: {}", self.current_player, match self.energy_left {
+                None => String::from("Attack phase"),
+                Some(energy) => format!("Upgrade phase ({} energy left)", energy),
+            })
+        };
+
         use conrod::{Widget, Positionable, Sizeable, Labelable, Colorable};
         let mut news = Vec::new();
         {
@@ -209,6 +225,10 @@ impl codevisual::Game for TrollInvasion {
                 .set(self.skip_button, ui) {
                 news.push("next phase");
             }
+            conrod::widget::Text::new(&current_status)
+                .mid_bottom_with_margin_on(ui.window, 50.0)
+                .color(conrod::color::WHITE)
+                .set(self.current_status, ui);
             self.ui_renderer.render(framebuffer, ui.draw());
         }
         for new in news {
