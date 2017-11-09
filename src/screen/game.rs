@@ -5,12 +5,9 @@ struct Vertex {
     a_pos: Vec2<f32>,
 }
 
-pub struct TrollInvasion {
+pub struct Game {
     nick: String,
     hex_geometry: ugli::VertexBuffer<Vertex>,
-    #[cfg(not(target_os = "emscripten"))]
-    connection: Arc<Mutex<Option<ws::Sender>>>,
-    receiver: std::sync::mpsc::Receiver<ServerMessage>,
     map: Vec<Vec<Option<GameCell>>>,
     material: codevisual::Material,
     app: Rc<codevisual::Application>,
@@ -24,65 +21,25 @@ pub struct TrollInvasion {
     ready_button: conrod::widget::Id,
     skip_button: conrod::widget::Id,
     current_status: conrod::widget::Id,
+    sender: connection::Sender,
 }
 
-impl codevisual::Game for TrollInvasion {
-    type Resources = ();
-
-    fn new(app: &Rc<codevisual::Application>, resources: Self::Resources) -> Self {
-        let nick = NICK.lock().unwrap().clone();
-        #[cfg(not(target_os = "emscripten"))]
-        let connection = Arc::new(Mutex::new(None));
-        let (sender, receiver) = std::sync::mpsc::channel();
-        #[cfg(target_os = "emscripten")]
-        {
-            let callback = web::Callback::from(move |addr: i32| {
-                let line = unsafe { std::ffi::CStr::from_ptr(addr as *mut _).to_string_lossy() };
-                sender.send(ServerMessage::parse(&line)).unwrap();
-            });
-            run_js! {
-                TrollInvasion.connect(&*HOST.lock().unwrap(), &*PORT.lock().unwrap(), &nick, callback);
-            }
+impl Screen for Game {
+    fn handle(&mut self, event: Event) -> Option<Box<Screen>> {
+        match event {
+            Event::Event(event) => self.handle_event(event),
+            Event::Draw(framebuffer) => self.draw(framebuffer),
+            Event::Update(delta_time) => self.update(delta_time),
+            Event::Message(message) => self.handle_message(message),
         }
-        #[cfg(not(target_os = "emscripten"))]
-        thread::spawn({
-            let connection = connection.clone();
-            let nick = nick.clone();
-            move || {
-                let address = format!("ws://{}:{}", *HOST.lock().unwrap(), *PORT.lock().unwrap());
-                println!("Connecting to {}", address);
-                ws::connect(address, |conn| {
-                    struct Handler {
-                        nick: String,
-                        sender: std::sync::mpsc::Sender<ServerMessage>,
-                        connection: Arc<Mutex<Option<ws::Sender>>>,
-                        conn: ws::Sender,
-                    }
-                    impl ws::Handler for Handler {
-                        fn on_open(&mut self, _: ws::Handshake) -> ws::Result<()> {
-                            self.conn.send(format!("+{}", self.nick)).unwrap();
-                            *self.connection.lock().unwrap() = Some(self.conn.clone());
-                            Ok(())
-                        }
-                        fn on_message(&mut self, message: ws::Message) -> ws::Result<()> {
-                            let message = message.into_text().unwrap();
-                            println!("{}", message);
-                            let message = ServerMessage::parse(&message);
-                            self.sender.send(message).unwrap();
-                            Ok(())
-                        }
-                    }
-                    Handler {
-                        nick: nick.clone(),
-                        sender: sender.clone(),
-                        connection: connection.clone(),
-                        conn,
-                    }
-                }).unwrap();
-            }
-        });
+        None
+    }
+}
+
+impl Game {
+    pub fn new(app: &Rc<codevisual::Application>, nick: String, sender: connection::Sender) -> Self {
         let mut ui = conrod::UiBuilder::new([640.0, 480.0]).build();
-        ui.fonts.insert(rusttype::FontCollection::from_bytes(include_bytes!("../font.ttf") as &[u8]).into_font().unwrap());
+        ui.fonts.insert(rusttype::FontCollection::from_bytes(include_bytes!("../../font.ttf") as &[u8]).into_font().unwrap());
         let skip_button = ui.widget_id_generator().next();
         let ready_button = ui.widget_id_generator().next();
         let current_status = ui.widget_id_generator().next();
@@ -90,9 +47,6 @@ impl codevisual::Game for TrollInvasion {
             hovered_cell: None,
             app: app.clone(),
             nick,
-            #[cfg(not(target_os = "emscripten"))]
-            connection,
-            receiver,
             current_player: String::new(),
             map: Vec::new(),
             selected_cell: None,
@@ -113,35 +67,37 @@ impl codevisual::Game for TrollInvasion {
             current_status,
             ui_renderer: UiRenderer::new(app),
             energy_left: None,
+            sender,
+        }
+    }
+
+    fn handle_message(&mut self, message: ServerMessage) {
+        use ServerMessage::*;
+        match message {
+            MapLine(index, line) => {
+                while index >= self.map.len() {
+                    self.map.push(Vec::new());
+                }
+                self.map[index] = line;
+            }
+            UpgradePhase => {
+                self.selected_cell = None;
+            }
+            SelectCell { row, col } => {
+                self.selected_cell = Some(vec2(row, col));
+            }
+            Turn { nick } => {
+                self.current_player = nick;
+                self.energy_left = None;
+            }
+            EnergyLeft(energy) => {
+                self.energy_left = Some(energy);
+            }
+            _ => {}
         }
     }
 
     fn update(&mut self, delta_time: f64) {
-        while let Ok(message) = self.receiver.try_recv() {
-            use ServerMessage::*;
-            match message {
-                MapLine(index, line) => {
-                    while index >= self.map.len() {
-                        self.map.push(Vec::new());
-                    }
-                    self.map[index] = line;
-                }
-                UpgradePhase => {
-                    self.selected_cell = None;
-                }
-                SelectCell { row, col } => {
-                    self.selected_cell = Some(vec2(row, col));
-                }
-                Turn { nick } => {
-                    self.current_player = nick;
-                    self.energy_left = None;
-                }
-                EnergyLeft(energy) => {
-                    self.energy_left = Some(energy);
-                }
-                _ => {}
-            }
-        }
         let size = self.app.window().get_size();
         self.ui.handle_event(conrod::event::Input::Resize(size.x as u32, size.y as u32));
     }
@@ -232,7 +188,7 @@ impl codevisual::Game for TrollInvasion {
             self.ui_renderer.render(framebuffer, ui.draw());
         }
         for new in news {
-            self.send(new);
+            self.sender.send(new);
         }
     }
 
@@ -267,7 +223,7 @@ impl codevisual::Game for TrollInvasion {
             codevisual::Event::MouseDown { button: codevisual::MouseButton::Left, position: pos } => {
                 if !self.map.is_empty() {
                     if let Some(Vec2 { x, y }) = self.find_pos(vec2(pos.x as f32, pos.y as f32)) {
-                        self.send(format!("{} {}", x, y));
+                        self.sender.send(format!("{} {}", x, y));
                     }
                 }
             }
@@ -277,9 +233,6 @@ impl codevisual::Game for TrollInvasion {
             _ => {}
         }
     }
-}
-
-impl TrollInvasion {
     fn find_pos(&self, pos: Vec2<f32>) -> Option<Vec2<usize>> {
         let pos = vec2((pos.x * 2.0 / self.app.window().get_size().x as f32 - 1.0),
                        (1.0 - pos.y * 2.0 / self.app.window().get_size().y as f32));
@@ -317,17 +270,5 @@ impl TrollInvasion {
                        blend_mode: ugli::BlendMode::Alpha,
                        ..Default::default()
                    });
-    }
-    fn send<S: std::borrow::Borrow<str>>(&mut self, message: S) {
-        #[cfg(target_os = "emscripten")]
-        run_js! {
-            TrollInvasion.send(message.borrow());
-        }
-        #[cfg(not(target_os = "emscripten"))]
-        {
-            if let Some(connection) = self.connection.lock().unwrap().as_ref() {
-                connection.send(format!("{}:{}", self.nick, message.borrow())).unwrap();
-            }
-        };
     }
 }

@@ -8,7 +8,7 @@ pub fn run(port: u16) {
     let jar = jar.spawn().expect("Failed to start TrollInvasion.jar");
     let jar_in = std::rc::Rc::new(std::cell::RefCell::new(jar.stdin.unwrap()));
     let mut jar_out = std::io::BufReader::new(jar.stdout.unwrap());
-    let connections: std::sync::Arc<std::sync::Mutex<Vec<ws::Sender>>> = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let connections: std::sync::Arc<std::sync::Mutex<HashMap<String, ws::Sender>>> = std::sync::Arc::new(std::sync::Mutex::new(HashMap::new()));
     std::thread::spawn({
         let connections = connections.clone();
         move || {
@@ -21,17 +21,28 @@ pub fn run(port: u16) {
                 }
                 let line = line.trim_right_matches('\n').trim_right_matches('\r');
                 eprintln!("> {}", line);
-                for connection in connections.lock().unwrap().iter() {
-                    connection.send(line).unwrap();
+                let (nick, message) = line.split_at(line.find(':').expect("No ':' found"));
+                let message = message[1..].trim();
+                if let Some(connection) = connections.lock().unwrap().get(nick) {
+                    connection.send(message).unwrap();
                 }
             }
         }
     });
     ws::listen(("0.0.0.0", port), move |connection| {
-        connections.lock().unwrap().push(connection.clone());
         let jar_in = jar_in.clone();
+        let nick = RefCell::new(String::new());
+        let connections = connections.clone();
         move |message: ws::Message| {
-            let message = message.into_text().unwrap();
+            let mut message = message.into_text().unwrap();
+            if message.starts_with('+') {
+                assert!(nick.borrow().len() == 0);
+                *nick.borrow_mut() = message[1..].to_owned();
+                connections.lock().unwrap().insert(nick.borrow().clone(), connection.clone());
+            } else {
+                assert!(nick.borrow().len() != 0);
+                message = format!("{}:{}", &nick.borrow(), message);
+            }
             eprintln!("< {}", message);
             use std::io::Write;
             let mut jar_in = jar_in.borrow_mut();

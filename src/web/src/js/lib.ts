@@ -31,7 +31,7 @@ namespace TrollInvasion {
     }
 
     export function send(message: string) {
-        socket.send(nickname + ":" + message);
+        socket.send(message);
     }
 }
 

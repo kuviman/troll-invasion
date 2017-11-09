@@ -22,98 +22,59 @@ pub ( crate ) use codevisual::ugli;
 
 #[cfg(not(target_os = "emscripten"))]
 mod server;
-mod client;
-#[cfg(not(target_os = "emscripten"))]
-mod console_client;
 mod ui_renderer;
+mod screen;
+mod model;
+mod connection;
 
+pub ( crate ) use model::*;
+pub ( crate ) use screen::*;
 pub ( crate ) use ui_renderer::UiRenderer;
-
-enum ServerMessage {
-    ReadyStatus {
-        nick: String,
-        ready: bool,
-    },
-    MapLine(usize, Vec<Option<GameCell>>),
-    GameStart,
-    PlayerColor {
-        nick: String,
-        color: char,
-    },
-    Turn {
-        nick: String,
-    },
-    SelectCell {
-        row: usize,
-        col: usize,
-    },
-    GameFinish,
-    UpgradePhase,
-    EnergyLeft(usize),
-}
-
-impl ServerMessage {
-    fn parse(message: &str) -> Self {
-        use ServerMessage::*;
-        let mut args = message.split_whitespace();
-        let command = args.next().unwrap();
-        match command {
-            "readyStatus" => ReadyStatus {
-                nick: args.next().unwrap().to_owned(),
-                ready: args.next().unwrap().parse().unwrap(),
-            },
-            "gameStart" => GameStart,
-            "playerColor" => PlayerColor {
-                nick: args.next().unwrap().to_owned(),
-                color: args.next().unwrap().parse().unwrap(),
-            },
-            "turn" => Turn {
-                nick: args.next().unwrap().to_owned(),
-            },
-            "selectCell" => SelectCell {
-                row: args.next().unwrap().parse().unwrap(),
-                col: args.next().unwrap().parse().unwrap(),
-            },
-            "gameFinish" => GameFinish,
-            "upgradePhase" => UpgradePhase,
-            "energyLeft" => EnergyLeft(args.next().unwrap().parse().unwrap()),
-            "mapLine" => {
-                let index = args.next().unwrap().parse().unwrap();
-                let cells = args.next().unwrap().split('|').map(|cell| {
-                    match cell {
-                        "##" => Some(GameCell::Empty),
-                        "__" => None,
-                        _ => {
-                            let (count, owner) = cell.split_at(cell.len() - 1);
-                            let count = count.parse().unwrap();
-                            let owner = owner.parse().unwrap();
-                            Some(GameCell::Populated {
-                                count,
-                                owner,
-                            })
-                        }
-                    }
-                }).collect();
-                MapLine(index, cells)
-            }
-            _ => panic!("Unexpected message: {:?}", message)
-        }
-    }
-}
-
-#[derive(Copy, Clone)]
-enum GameCell {
-    Empty,
-    Populated {
-        count: usize,
-        owner: char,
-    }
-}
 
 lazy_static! {
     static ref HOST: Mutex<String> = Mutex::new(String::new());
     static ref PORT: Mutex<u16> = Mutex::new(0);
     static ref NICK: Mutex<String> = Mutex::new(String::new());
+}
+
+struct TrollInvasion {
+    screen: Box<screen::Screen>,
+    receiver: connection::Receiver,
+}
+
+impl codevisual::Game for TrollInvasion {
+    type Resources = ();
+    fn get_title() -> String {
+        String::from("Troll invasion")
+    }
+    fn update(&mut self, delta_time: f64) {
+        if let Some(screen) = self.screen.handle(screen::Event::Update(delta_time)) {
+            self.screen = screen;
+        }
+        while let Some(message) = self.receiver.try_recv() {
+            if let Some(screen) = self.screen.handle(screen::Event::Message(message)) {
+                self.screen = screen;
+            }
+        }
+    }
+    fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
+        let event = screen::Event::Draw(framebuffer);
+        if let Some(screen) = self.screen.handle(event) {
+            self.screen = screen;
+        }
+    }
+    fn handle_event(&mut self, event: codevisual::Event) {
+        if let Some(screen) = self.screen.handle(screen::Event::Event(event)) {
+            self.screen = screen;
+        }
+    }
+    fn new(app: &Rc<codevisual::Application>, resources: Self::Resources) -> Self {
+        let (sender, receiver) = connection::connect(&NICK.lock().unwrap(), &HOST.lock().unwrap(), *PORT.lock().unwrap());
+        Self {
+            receiver,
+            screen: Box::new(screen::Game::new(app, NICK.lock().unwrap().clone(), sender)),
+        }
+    }
 }
 
 fn main() {
@@ -126,7 +87,6 @@ fn main() {
     let mut port: u16 = 8008;
     let mut host = None;
     let mut start_server = false;
-    let mut console = false;
     let mut nickname = None;
 
     {
@@ -135,7 +95,6 @@ fn main() {
         ap.refer(&mut port).add_option(&["-p", "--port"], argparse::Store, "Specify port");
         ap.refer(&mut host).add_option(&["-c", "--connect"], argparse::StoreOption, "Start client, connect to specified host");
         ap.refer(&mut nickname).add_option(&["--nick"], argparse::StoreOption, "Nickname");
-        ap.refer(&mut console).add_option(&["--console"], argparse::StoreTrue, "Console version");
         ap.refer(&mut start_server).add_option(&["-s", "--server"], argparse::StoreTrue, "Start server");
         ap.parse_args_or_exit();
     }
@@ -161,24 +120,19 @@ fn main() {
         if start_server {
             std::thread::sleep(std::time::Duration::from_millis(500));
         }
-        if console {
-            #[cfg(not(target_os = "emscripten"))]
-            console_client::run(&host, port);
-        } else {
-            *HOST.lock().unwrap() = host;
-            *PORT.lock().unwrap() = port;
-            {
-                let mut nick = NICK.lock().unwrap();
-                if let Some(nickname) = nickname {
-                    *nick = nickname;
-                } else {
-                    print!("nick: ");
-                    std::io::Write::flush(&mut std::io::stdout()).unwrap();
-                    std::io::stdin().read_line(&mut nick).unwrap();
-                }
-                *nick = nick.trim().to_owned();
+        *HOST.lock().unwrap() = host;
+        *PORT.lock().unwrap() = port;
+        {
+            let mut nick = NICK.lock().unwrap();
+            if let Some(nickname) = nickname {
+                *nick = nickname;
+            } else {
+                print!("nick: ");
+                std::io::Write::flush(&mut std::io::stdout()).unwrap();
+                std::io::stdin().read_line(&mut nick).unwrap();
             }
-            codevisual::run::<client::TrollInvasion>();
+            *nick = nick.trim().to_owned();
         }
+        codevisual::run::<TrollInvasion>();
     }
 }
