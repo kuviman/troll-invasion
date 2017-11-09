@@ -1,5 +1,6 @@
 use ::*;
 
+#[derive(Clone)]
 pub struct Sender {
     nick: String,
     #[cfg(not(target_os = "emscripten"))]
@@ -44,7 +45,6 @@ pub fn connect(nick: &str, host: &str, port: u16) -> (Sender, Receiver) {
                     impl ws::Handler for Handler {
                         fn on_open(&mut self, _: ws::Handshake) -> ws::Result<()> {
                             self.conn.send(format!("+{}", self.nick)).unwrap();
-                            self.conn.send("createGame test").unwrap(); // TODO: remove
                             *self.connection.lock().unwrap() = Some(self.conn.clone());
                             Ok(())
                         }

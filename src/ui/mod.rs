@@ -7,7 +7,8 @@ struct Vertex {
     a_color: Color,
 }
 
-pub struct UiRenderer {
+pub struct Ui {
+    ui: conrod::Ui,
     app: Rc<codevisual::Application>,
     material: codevisual::Material,
     geometry: ugli::VertexBuffer<Vertex>,
@@ -15,9 +16,25 @@ pub struct UiRenderer {
     cache_texture: ugli::Texture2d,
 }
 
-impl UiRenderer {
+impl Deref for Ui {
+    type Target = conrod::Ui;
+    fn deref(&self) -> &Self::Target {
+        &self.ui
+    }
+}
+
+impl DerefMut for Ui {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.ui
+    }
+}
+
+impl Ui {
     pub fn new(app: &Rc<codevisual::Application>) -> Self {
+        let mut ui = conrod::UiBuilder::new([640.0, 480.0]).build();
+        ui.fonts.insert(rusttype::FontCollection::from_bytes(include_bytes!("../../font.ttf") as &[u8]).into_font().unwrap());
         Self {
+            ui,
             app: app.clone(),
             material: codevisual::Material::new(app.ugli_context(), (), (), include_str!("shader.glsl")),
             geometry: ugli::VertexBuffer::new_dynamic(app.ugli_context(), Vec::new()),
@@ -25,7 +42,11 @@ impl UiRenderer {
             cache_texture: ugli::Texture2d::new_uninitialized(app.ugli_context(), vec2(2048, 2048)),
         }
     }
-    pub fn render(&mut self, framebuffer: &mut ugli::Framebuffer, mut primitives: conrod::render::Primitives) {
+    pub fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
+        let size = self.app.window().get_size();
+        self.ui.handle_event(conrod::event::Input::Resize(size.x as u32, size.y as u32));
+
+        let mut primitives = self.ui.draw();
         {
             use conrod::render::PrimitiveWalker;
             let geometry: &mut Vec<Vertex> = &mut self.geometry;
@@ -122,7 +143,7 @@ impl UiRenderer {
                                 let y1 = rect.min.y as f32;
                                 let x2 = rect.max.x as f32;
                                 let y2 = rect.max.y as f32;
-//                                println!("{} {}", x1, y1);
+                                //                                println!("{} {}", x1, y1);
                                 let u1 = texture_rect.min.x;
                                 let u2 = texture_rect.max.x;
                                 let v1 = texture_rect.min.y;
@@ -177,5 +198,56 @@ impl UiRenderer {
                        blend_mode: ugli::BlendMode::Alpha,
                        ..Default::default()
                    });
+    }
+    pub fn handle_event(&mut self, event: codevisual::Event) {
+        fn convert_mousebutton(button: codevisual::MouseButton) -> conrod::input::MouseButton {
+            match button {
+                codevisual::MouseButton::Left => conrod::input::MouseButton::Left,
+                codevisual::MouseButton::Middle => conrod::input::MouseButton::Middle,
+                codevisual::MouseButton::Right => conrod::input::MouseButton::Right,
+            }
+        }
+        fn convert_key(key: codevisual::Key) -> Option<conrod::input::Key> {
+            use codevisual::Key as A;
+            use conrod::input::Key as B;
+            match key {
+                _ => None
+            }
+        }
+        let window_size = self.app.window().get_size();
+        if let Some(event) = match event {
+            codevisual::Event::MouseMove { position } => {
+                Some(conrod::event::Input::Motion(conrod::input::Motion::MouseCursor {
+                    x: position.x - window_size.x as f64 / 2.0,
+                    y: window_size.y as f64 / 2.0 - position.y,
+                }))
+            }
+            codevisual::Event::MouseDown { button, .. } => {
+                Some(conrod::event::Input::Press(conrod::input::Button::Mouse(convert_mousebutton(button))))
+            }
+            codevisual::Event::MouseUp { button, .. } => {
+                Some(conrod::event::Input::Release(conrod::input::Button::Mouse(convert_mousebutton(button))))
+            }
+            codevisual::Event::KeyDown { key } => {
+                if let Some(key) = convert_key(key) {
+                    Some(conrod::event::Input::Press(conrod::input::Button::Keyboard(key)))
+                } else {
+                    None
+                }
+            }
+            codevisual::Event::KeyUp { key } => {
+                if let Some(key) = convert_key(key) {
+                    Some(conrod::event::Input::Release(conrod::input::Button::Keyboard(key)))
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        } {
+            self.ui.handle_event(event);
+        }
+        if let codevisual::Event::KeyDown { key } = event {
+            self.ui.handle_event(conrod::event::Input::Text(format!("{:?}", key)));
+        }
     }
 }

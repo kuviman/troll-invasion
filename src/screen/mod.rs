@@ -1,8 +1,10 @@
 use ::*;
 
 mod game;
+mod lobby;
 
 pub use self::game::*;
+pub use self::lobby::*;
 
 pub enum Event<'a, 'b> where 'b: 'a {
     Update(f64),

@@ -21,10 +21,12 @@ pub fn run(port: u16) {
                 }
                 let line = line.trim_right_matches('\n').trim_right_matches('\r');
                 eprintln!("> {}", line);
-                let (nick, message) = line.split_at(line.find(':').expect("No ':' found"));
+                let (nicks, message) = line.split_at(line.find(':').expect("No ':' found"));
                 let message = message[1..].trim();
-                if let Some(connection) = connections.lock().unwrap().get(nick) {
-                    connection.send(message).unwrap();
+                for nick in nicks.split(',') {
+                    if let Some(connection) = connections.lock().unwrap().get(nick) {
+                        connection.send(message).unwrap();
+                    }
                 }
             }
         }

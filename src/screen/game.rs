@@ -16,8 +16,7 @@ pub struct Game {
     selected_cell: Option<Vec2<usize>>,
     hovered_cell: Option<Vec2<usize>>,
     matrix: std::cell::Cell<Mat4<f32>>,
-    ui: conrod::Ui,
-    ui_renderer: UiRenderer,
+    ui: Ui,
     ready_button: conrod::widget::Id,
     skip_button: conrod::widget::Id,
     current_status: conrod::widget::Id,
@@ -38,8 +37,7 @@ impl Screen for Game {
 
 impl Game {
     pub fn new(app: &Rc<codevisual::Application>, nick: String, sender: connection::Sender) -> Self {
-        let mut ui = conrod::UiBuilder::new([640.0, 480.0]).build();
-        ui.fonts.insert(rusttype::FontCollection::from_bytes(include_bytes!("../../font.ttf") as &[u8]).into_font().unwrap());
+        let mut ui = Ui::new(app);
         let skip_button = ui.widget_id_generator().next();
         let ready_button = ui.widget_id_generator().next();
         let current_status = ui.widget_id_generator().next();
@@ -65,7 +63,6 @@ impl Game {
             skip_button,
             ready_button,
             current_status,
-            ui_renderer: UiRenderer::new(app),
             energy_left: None,
             sender,
         }
@@ -97,10 +94,7 @@ impl Game {
         }
     }
 
-    fn update(&mut self, delta_time: f64) {
-        let size = self.app.window().get_size();
-        self.ui.handle_event(conrod::event::Input::Resize(size.x as u32, size.y as u32));
-    }
+    fn update(&mut self, delta_time: f64) {}
 
     fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
         ugli::clear(framebuffer,
@@ -185,8 +179,8 @@ impl Game {
                 .mid_bottom_with_margin_on(ui.window, 50.0)
                 .color(conrod::color::WHITE)
                 .set(self.current_status, ui);
-            self.ui_renderer.render(framebuffer, ui.draw());
         }
+        self.ui.draw(framebuffer);
         for new in news {
             self.sender.send(new);
         }
@@ -194,31 +188,7 @@ impl Game {
 
     fn handle_event(&mut self, event: codevisual::Event) {
         let window_size = self.app.window().get_size();
-        if let Some(event) = match event {
-            codevisual::Event::MouseMove { position } => {
-                Some(conrod::event::Input::Motion(conrod::input::Motion::MouseCursor {
-                    x: position.x - window_size.x as f64 / 2.0,
-                    y: window_size.y as f64 / 2.0 - position.y,
-                }))
-            }
-            codevisual::Event::MouseDown { button, .. } => {
-                Some(conrod::event::Input::Press(conrod::input::Button::Mouse(match button {
-                    codevisual::MouseButton::Left => conrod::input::MouseButton::Left,
-                    codevisual::MouseButton::Middle => conrod::input::MouseButton::Middle,
-                    codevisual::MouseButton::Right => conrod::input::MouseButton::Right,
-                })))
-            }
-            codevisual::Event::MouseUp { button, .. } => {
-                Some(conrod::event::Input::Release(conrod::input::Button::Mouse(match button {
-                    codevisual::MouseButton::Left => conrod::input::MouseButton::Left,
-                    codevisual::MouseButton::Middle => conrod::input::MouseButton::Middle,
-                    codevisual::MouseButton::Right => conrod::input::MouseButton::Right,
-                })))
-            }
-            _ => None,
-        } {
-            self.ui.handle_event(event);
-        }
+        self.ui.handle_event(event.clone());
         match event {
             codevisual::Event::MouseDown { button: codevisual::MouseButton::Left, position: pos } => {
                 if !self.map.is_empty() {

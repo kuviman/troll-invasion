@@ -22,14 +22,14 @@ pub ( crate ) use codevisual::ugli;
 
 #[cfg(not(target_os = "emscripten"))]
 mod server;
-mod ui_renderer;
+mod ui;
 mod screen;
 mod model;
 mod connection;
 
 pub ( crate ) use model::*;
 pub ( crate ) use screen::*;
-pub ( crate ) use ui_renderer::UiRenderer;
+pub ( crate ) use ui::Ui;
 
 lazy_static! {
     static ref HOST: Mutex<String> = Mutex::new(String::new());
@@ -72,7 +72,7 @@ impl codevisual::Game for TrollInvasion {
         let (sender, receiver) = connection::connect(&NICK.lock().unwrap(), &HOST.lock().unwrap(), *PORT.lock().unwrap());
         Self {
             receiver,
-            screen: Box::new(screen::Game::new(app, NICK.lock().unwrap().clone(), sender)),
+            screen: Box::new(screen::Lobby::new(app, NICK.lock().unwrap().clone(), sender)),
         }
     }
 }
