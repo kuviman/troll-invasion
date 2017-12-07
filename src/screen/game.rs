@@ -236,8 +236,8 @@ impl Game {
                    &self.hex_geometry,
                    uniforms!(u_radius: radius, u_pos: pos, u_color: color, u_matrix: self.matrix.get()),
                    ugli::DrawParameters {
-                       depth_test: ugli::DepthTest::Off,
-                       blend_mode: ugli::BlendMode::Alpha,
+                       depth_func: None,
+                       blend_mode: Some(ugli::BlendMode::Alpha),
                        ..Default::default()
                    });
     }

@@ -194,8 +194,8 @@ impl Ui {
                    &self.geometry,
                    uniforms!(u_glyph_cache: &self.cache_texture),
                    ugli::DrawParameters {
-                       depth_test: ugli::DepthTest::Off,
-                       blend_mode: ugli::BlendMode::Alpha,
+                       depth_func: None,
+                       blend_mode: Some(ugli::BlendMode::Alpha),
                        ..Default::default()
                    });
     }

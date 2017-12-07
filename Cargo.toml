@@ -3,21 +3,12 @@ name = "troll-invasion"
 version = "0.1.0"
 authors = ["kuviman <kuviman@gmail.com>"]
 
-[workspace]
-members = [ "web-launch" ]
-
 [dependencies]
 argparse = "*"
 log = "*"
 env_logger = "*"
 lazy_static = "*"
-conrod = "*"
-rusttype = "*"
-codevisual = { path = "codevisual" }
-
-[target.'cfg(target_os = "emscripten")'.dependencies]
-web = { path = "codevisual/web" }
-troll-invasion-web = { path = "src/web" }
-
-[target.'cfg(not(target_os = "emscripten"))'.dependencies]
+conrod = "0.56.0"
+rusttype = "0.2.0"
+codevisual = { git = "https://kuviman@bitbucket.org/kuviman/codevisual.git" }
 ws = "*"

@@ -1,6 +1,4 @@
-#[cfg(not(target_os = "emscripten"))]
 extern crate ws;
-#[cfg(not(target_os = "emscripten"))]
 extern crate env_logger;
 extern crate argparse;
 #[macro_use]
@@ -10,17 +8,10 @@ extern crate rusttype;
 
 #[macro_use]
 extern crate codevisual;
-#[cfg(target_os = "emscripten")]
-#[macro_use]
-extern crate web;
-
-#[cfg(target_os = "emscripten")]
-extern crate troll_invasion_web;
 
 pub ( crate ) use codevisual::prelude::*;
 pub ( crate ) use codevisual::ugli;
 
-#[cfg(not(target_os = "emscripten"))]
 mod server;
 mod ui;
 mod screen;
@@ -78,10 +69,6 @@ impl codevisual::Game for TrollInvasion {
 }
 
 fn main() {
-    #[cfg(target_os = "emscripten")]
-    web::run_script(troll_invasion_web::JS_SOURCE);
-
-    #[cfg(not(target_os = "emscripten"))]
     env_logger::init().unwrap();
 
     let mut port: u16 = 8008;
@@ -99,22 +86,14 @@ fn main() {
         ap.parse_args_or_exit();
     }
 
-    #[cfg(target_os = "emscripten")]
-    {
-        host = Some(String::from("play.kuviman.com"));
-        nickname = Some(String::from("nickname"));
-    }
-    #[cfg(not(target_os = "emscripten"))]
-    {
-        if start_server {
-            if host.is_some() {
-                std::thread::spawn(move || { server::run(port) });
-            } else {
-                server::run(port);
-            }
-        } else if host.is_none() {
-            host = Some(String::from("play.kuviman.com"));
+    if start_server {
+        if host.is_some() {
+            std::thread::spawn(move || { server::run(port) });
+        } else {
+            server::run(port);
         }
+    } else if host.is_none() {
+        host = Some(String::from("play.kuviman.com"));
     }
     if let Some(host) = host {
         if start_server {
