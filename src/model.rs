@@ -22,7 +22,8 @@ pub enum ServerMessage {
     GameList {
         name: String,
         player_count: usize,
-    }
+    },
+    GameEntered,
 }
 
 impl ServerMessage {
@@ -69,12 +70,11 @@ impl ServerMessage {
                 }).collect();
                 MapLine(index, cells)
             }
-            "gameList" => {
-                GameList {
-                    name: args.next().unwrap().to_owned(),
-                    player_count: args.next().unwrap().parse().unwrap(),
-                }
-            }
+            "gameList" => GameList {
+                name: args.next().unwrap().to_owned(),
+                player_count: args.next().unwrap().parse().unwrap(),
+            },
+            "gameEntered" => GameEntered,
             _ => panic!("Unexpected message: {:?}", message)
         }
     }
