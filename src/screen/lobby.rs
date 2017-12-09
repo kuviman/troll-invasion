@@ -3,15 +3,14 @@ use ::*;
 pub struct Lobby {
     app: Rc<codevisual::App>,
     nick: String,
-    ui: Ui,
+    menu: MenuScreen,
     sender: connection::Sender,
-    game_name: String,
-    game_name_widget: conrod::widget::Id,
-    create_game_button: conrod::widget::Id,
-    game_list_widget: conrod::widget::Id,
     next_query_time: f64,
-    games: HashMap<String, usize>,
+    games: BTreeMap<String, usize>,
 }
+
+const CREATE_INDEX: usize = 6;
+const GAMES_START: usize = 9;
 
 impl Screen for Lobby {
     fn handle(&mut self, event: Event) -> Option<Box<Screen>> {
@@ -24,47 +23,26 @@ impl Screen for Lobby {
                 }
             }
             Event::Draw(framebuffer) => {
-                ugli::clear(framebuffer, Some(Color::BLACK), None);
-                {
-                    use conrod::{Widget, Positionable, Sizeable, Labelable, Colorable};
-                    let ui = &mut self.ui.set_widgets();
-                    for event in conrod::widget::TextBox::new(&self.game_name)
-                        .middle_of(ui.window)
-                        .w_h(150.0, 50.0)
-                        .set(self.game_name_widget, ui) {
-                        match event {
-                            conrod::widget::text_box::Event::Update(s) => self.game_name = s,
-                            _ => {}
-                        }
-                    }
-                    for _ in conrod::widget::Button::new()
-                        .label("Create game")
-                        .down_from(self.game_name_widget, 10.0)
-                        .set(self.create_game_button, ui) {
-                        self.sender.send(format!("createGame {}", self.game_name));
-                        return Some(Box::new(screen::Game::new(&self.app, self.nick.clone(), self.sender.clone())));
-                    }
-                    let (mut events, _) = conrod::widget::ListSelect::single(self.games.len())
-                        .down_from(self.create_game_button, 10.0)
-                        .set(self.game_list_widget, ui);
-                    while let Some(event) = events.next(ui, |_| false) {
-                        let mut games = self.games.iter().collect::<Vec<_>>();
-                        match event {
-                            conrod::widget::list_select::Event::Item(conrod::widget::list::Item { i, widget_id, .. }) => {
-                                let game = games[i];
-                                conrod::widget::Text::new(&format!("{} ({} players)", game.0, game.1))
-                                    .color(conrod::color::WHITE)
-                                    .set(widget_id, ui);
-                            }
-                            conrod::widget::list_select::Event::Selection(selection) => {
-                                self.sender.send(format!("joinGame {}", games[selection].0));
-                                return Some(Box::new(screen::Game::new(&self.app, self.nick.clone(), self.sender.clone())));
-                            }
-                            _ => {}
-                        }
-                    }
+                self.menu.sections.split_off(GAMES_START);
+                for (game, player_count) in &self.games {
+                    self.menu.sections.push(MenuSection {
+                        text: format!("{} ({})", game, player_count),
+                        size: 7.0,
+                        color: Color::WHITE,
+                        back_color: Color::rgb(0.3, 0.3, 0.3),
+                        hover_color: Some(Color::rgb(0.5, 0.5, 1.0)),
+                    });
                 }
-                self.ui.draw(framebuffer);
+                if self.games.is_empty() {
+                    self.menu.sections.push(MenuSection {
+                        text: String::from("no games yet, create one!"),
+                        size: 7.0,
+                        color: Color::rgb(0.5, 0.5, 0.5),
+                        back_color: Color::BLACK,
+                        hover_color: None,
+                    });
+                }
+                self.menu.draw(framebuffer);
             }
             Event::Message(message) => {
                 if let ServerMessage::GameList { name, player_count } = message {
@@ -76,7 +54,31 @@ impl Screen for Lobby {
                 }
             }
             Event::Event(event) => {
-                self.ui.handle_event(event);
+                if let codevisual::Event::KeyDown { key } = event {
+                    match key {
+                        codevisual::Key::Backspace => {
+                            self.name_section().text.pop();
+                        }
+                        codevisual::Key::Enter => {
+                            return Some(self.create_game());
+                        }
+                        _ => {
+                            let key = format!("{:?}", key);
+                            if key.len() == 1 {
+                                let name_section = self.name_section();
+                                if name_section.text.len() < 15 {
+                                    name_section.text += &key.to_lowercase();
+                                }
+                            }
+                        }
+                    }
+                } else if let Some(selection) = self.menu.handle(event) {
+                    if selection == CREATE_INDEX {
+                        return Some(self.create_game());
+                    } else if selection >= GAMES_START {
+                        return Some(self.connect(selection - GAMES_START));
+                    }
+                }
             }
         }
         None
@@ -84,22 +86,71 @@ impl Screen for Lobby {
 }
 
 impl Lobby {
+    fn create_game(&mut self) -> Box<Screen> {
+        let name = self.name_section().text.clone();
+        self.sender.send(format!("createGame {}", name));
+        Box::new(screen::Game::new(&self.app, self.nick.clone(), self.sender.clone()))
+    }
+    fn connect(&mut self, index: usize) -> Box<Screen> {
+        self.sender.send(format!("joinGame {}", self.games.keys().nth(index).unwrap()));
+        Box::new(screen::Game::new(&self.app, self.nick.clone(), self.sender.clone()))
+    }
+    fn name_section(&mut self) -> &mut MenuSection {
+        &mut self.menu.sections[CREATE_INDEX - 1]
+    }
     pub fn new(app: &Rc<codevisual::App>, nick: String, sender: connection::Sender) -> Self {
-        let mut ui = Ui::new(app);
-        let game_name_widget = ui.widget_id_generator().next();
-        let create_game_button = ui.widget_id_generator().next();
-        let game_list_widget = ui.widget_id_generator().next();
         Self {
             app: app.clone(),
-            nick,
-            game_name: String::new(),
+            nick: nick.clone(),
             next_query_time: 0.0,
-            game_name_widget,
-            create_game_button,
-            game_list_widget,
             sender,
-            ui,
-            games: HashMap::new(),
+            menu: MenuScreen::new(app, vec![
+                MenuSection {
+                    text: String::from("TroLL InvaSioN"),
+                    size: 20.0,
+                    color: Color::rgb(0.8, 0.8, 1.0),
+                    back_color: Color::BLACK,
+                    hover_color: None,
+                },
+                MenuSection {
+                    text: nick.clone(),
+                    size: 5.0,
+                    color: Color::WHITE,
+                    back_color: Color::BLACK,
+                    hover_color: None,
+                },
+                MenuSection::new_empty(1.0, Color::rgb(0.05, 0.05, 0.05)),
+                MenuSection::new_empty(10.0, Color::BLACK),
+                MenuSection {
+                    text: String::from("game name:"),
+                    size: 5.0,
+                    color: Color::WHITE,
+                    back_color: Color::BLACK,
+                    hover_color: None,
+                },
+                MenuSection {
+                    text: String::new(),
+                    size: 10.0,
+                    color: Color::WHITE,
+                    back_color: Color::rgb(0.2, 0.2, 0.4),
+                    hover_color: None,
+                },
+                MenuSection {
+                    text: String::from("create game"),
+                    size: 10.0,
+                    color: Color::WHITE,
+                    back_color: Color::rgb(0.3, 0.3, 0.3),
+                    hover_color: Some(Color::rgb(0.5, 0.5, 1.0)),
+                },
+                MenuSection::new_empty(10.0, Color::BLACK),
+                MenuSection {
+                    text: String::from("coNnecT"),
+                    size: 10.0,
+                    color: Color::WHITE,
+                    back_color: Color::BLACK,
+                    hover_color: None,
+                }]),
+            games: BTreeMap::new(),
         }
     }
 }
