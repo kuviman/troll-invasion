@@ -60,7 +60,9 @@ impl Screen for Lobby {
                             self.name_section().text.pop();
                         }
                         codevisual::Key::Enter => {
-                            return Some(self.create_game());
+                            if !self.name_section().text.is_empty() {
+                                return Some(self.create_game());
+                            }
                         }
                         _ => {
                             let key = format!("{:?}", key);
@@ -74,7 +76,9 @@ impl Screen for Lobby {
                     }
                 } else if let Some(selection) = self.menu.handle(event) {
                     if selection == CREATE_INDEX {
-                        return Some(self.create_game());
+                        if !self.name_section().text.is_empty() {
+                            return Some(self.create_game());
+                        }
                     } else if selection >= GAMES_START {
                         return Some(self.connect(selection - GAMES_START));
                     }
