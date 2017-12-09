@@ -9,7 +9,7 @@ struct Vertex {
 
 pub struct Ui {
     ui: conrod::Ui,
-    app: Rc<codevisual::Application>,
+    app: Rc<codevisual::App>,
     material: codevisual::Material,
     geometry: ugli::VertexBuffer<Vertex>,
     cache: conrod::text::GlyphCache,
@@ -30,7 +30,7 @@ impl DerefMut for Ui {
 }
 
 impl Ui {
-    pub fn new(app: &Rc<codevisual::Application>) -> Self {
+    pub fn new(app: &Rc<codevisual::App>) -> Self {
         let mut ui = conrod::UiBuilder::new([640.0, 480.0]).build();
         ui.fonts.insert(rusttype::FontCollection::from_bytes(include_bytes!("../../font.ttf") as &[u8]).into_font().unwrap());
         Self {

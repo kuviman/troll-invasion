@@ -10,7 +10,7 @@ pub struct Game {
     hex_geometry: ugli::VertexBuffer<Vertex>,
     map: Vec<Vec<Option<GameCell>>>,
     material: codevisual::Material,
-    app: Rc<codevisual::Application>,
+    app: Rc<codevisual::App>,
     current_player: String,
     energy_left: Option<usize>,
     selected_cell: Option<Vec2<usize>>,
@@ -36,7 +36,7 @@ impl Screen for Game {
 }
 
 impl Game {
-    pub fn new(app: &Rc<codevisual::Application>, nick: String, sender: connection::Sender) -> Self {
+    pub fn new(app: &Rc<codevisual::App>, nick: String, sender: connection::Sender) -> Self {
         let mut ui = Ui::new(app);
         let skip_button = ui.widget_id_generator().next();
         let ready_button = ui.widget_id_generator().next();

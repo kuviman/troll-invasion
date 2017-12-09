@@ -1,7 +1,7 @@
 use ::*;
 
 pub struct Lobby {
-    app: Rc<codevisual::Application>,
+    app: Rc<codevisual::App>,
     nick: String,
     ui: Ui,
     sender: connection::Sender,
@@ -84,7 +84,7 @@ impl Screen for Lobby {
 }
 
 impl Lobby {
-    pub fn new(app: &Rc<codevisual::Application>, nick: String, sender: connection::Sender) -> Self {
+    pub fn new(app: &Rc<codevisual::App>, nick: String, sender: connection::Sender) -> Self {
         let mut ui = Ui::new(app);
         let game_name_widget = ui.widget_id_generator().next();
         let create_game_button = ui.widget_id_generator().next();

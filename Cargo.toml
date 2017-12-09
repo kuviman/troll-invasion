@@ -11,4 +11,5 @@ lazy_static = "*"
 conrod = "0.56.0"
 rusttype = "0.2.0"
 codevisual = { git = "https://kuviman@bitbucket.org/kuviman/codevisual.git" }
+ugli = { git = "https://kuviman@bitbucket.org/kuviman/codevisual.git" }
 ws = "*"
