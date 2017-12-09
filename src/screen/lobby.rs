@@ -75,7 +75,10 @@ impl Screen for Lobby {
                         }
                     }
                 } else if let Some(selection) = self.menu.handle(event) {
-                    if selection == CREATE_INDEX {
+                    if selection == 1 {
+                        NICK.lock().unwrap().clear();
+                        return Some(Box::new(NicknameScreen::new(&self.app)));
+                    } else if selection == CREATE_INDEX {
                         if !self.name_section().text.is_empty() {
                             return Some(self.create_game());
                         }
@@ -121,7 +124,7 @@ impl Lobby {
                     size: 5.0,
                     color: Color::WHITE,
                     back_color: Color::BLACK,
-                    hover_color: None,
+                    hover_color: Some(Color::RED),
                 },
                 MenuSection::new_empty(1.0, Color::rgb(0.05, 0.05, 0.05)),
                 MenuSection::new_empty(10.0, Color::BLACK),
