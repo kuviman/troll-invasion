@@ -16,14 +16,18 @@ pub enum ServerMessage {
         row: usize,
         col: usize,
     },
-    GameFinish,
+    GameFinish {
+        winner: String,
+    },
     UpgradePhase,
     EnergyLeft(usize),
     GameList {
         name: String,
         player_count: usize,
     },
-    GameEntered,
+    GameEntered {
+        name: String,
+    },
 }
 
 impl ServerMessage {
@@ -48,7 +52,9 @@ impl ServerMessage {
                 row: args.next().unwrap().parse().unwrap(),
                 col: args.next().unwrap().parse().unwrap(),
             },
-            "gameFinish" => GameFinish,
+            "gameFinish" => GameFinish {
+                winner: args.next().unwrap().to_owned(),
+            },
             "upgradePhase" => UpgradePhase,
             "energyLeft" => EnergyLeft(args.next().unwrap().parse().unwrap()),
             "mapLine" => {
@@ -74,7 +80,9 @@ impl ServerMessage {
                 name: args.next().unwrap().to_owned(),
                 player_count: args.next().unwrap().parse().unwrap(),
             },
-            "gameEntered" => GameEntered,
+            "gameEntered" => GameEntered {
+                name: args.next().unwrap().to_owned(),
+            },
             _ => panic!("Unexpected message: {:?}", message)
         }
     }
