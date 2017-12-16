@@ -25,6 +25,9 @@ pub enum ServerMessage {
         name: String,
         player_count: usize,
     },
+    GameLeft {
+        nick: String
+    },
     GameEntered {
         name: String,
     },
@@ -82,6 +85,9 @@ impl ServerMessage {
             },
             "gameEntered" => GameEntered {
                 name: args.next().unwrap().to_owned(),
+            },
+            "gameLeft" => GameLeft {
+                nick: args.next().unwrap().to_owned(),
             },
             _ => panic!("Unexpected message: {:?}", message)
         }

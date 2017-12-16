@@ -82,7 +82,7 @@ impl Screen for Lobby {
                         if !self.name_section().text.is_empty() {
                             return Some(self.create_game());
                         }
-                    } else if selection >= GAMES_START {
+                    } else if selection >= GAMES_START && !self.games.is_empty() {
                         return Some(self.connect(selection - GAMES_START));
                     }
                 }
@@ -96,11 +96,12 @@ impl Lobby {
     fn create_game(&mut self) -> Box<Screen> {
         let name = self.name_section().text.clone();
         self.sender.send(format!("createGame {}", name));
-        Box::new(screen::Game::new(&self.app, self.nick.clone(), self.sender.clone()))
+        Box::new(screen::GameLobby::new(&self.app, self.nick.clone(), name, self.sender.clone()))
     }
     fn connect(&mut self, index: usize) -> Box<Screen> {
-        self.sender.send(format!("joinGame {}", self.games.keys().nth(index).unwrap()));
-        Box::new(screen::Game::new(&self.app, self.nick.clone(), self.sender.clone()))
+        let game_name = self.games.keys().nth(index).unwrap();
+        self.sender.send(format!("joinGame {}", game_name));
+        Box::new(screen::GameLobby::new(&self.app, self.nick.clone(), game_name.clone(), self.sender.clone()))
     }
     fn name_section(&mut self) -> &mut MenuSection {
         &mut self.menu.sections[CREATE_INDEX - 1]
