@@ -5,7 +5,7 @@ pub fn run(port: u16) {
     jar.arg("-jar").arg(std::path::Path::new("target").join("troll-invasion.jar"));
     jar.stdin(std::process::Stdio::piped());
     jar.stdout(std::process::Stdio::piped());
-    let jar = jar.spawn().expect("Failed to start TrollInvasion.jar");
+    let jar = jar.spawn().expect("Failed to start troll-invasion.jar");
     let jar_in = std::rc::Rc::new(std::cell::RefCell::new(jar.stdin.unwrap()));
     let mut jar_out = std::io::BufReader::new(jar.stdout.unwrap());
     let connections: std::sync::Arc<std::sync::Mutex<HashMap<String, ws::Sender>>> = std::sync::Arc::new(std::sync::Mutex::new(HashMap::new()));
