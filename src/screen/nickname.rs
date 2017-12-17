@@ -27,7 +27,7 @@ impl NicknameScreen {
                     hover_color: None,
                 },
                 MenuSection {
-                    text: String::new(),
+                    text: NICK.lock().unwrap().clone(),
                     size: 10.0,
                     color: Color::WHITE,
                     back_color: Color::rgb(0.2, 0.2, 0.4),
@@ -59,6 +59,7 @@ impl Screen for NicknameScreen {
                         codevisual::Key::Enter => {
                             if !self.nick_section().text.is_empty() {
                                 *NICK.lock().unwrap() = self.nick_section().text.clone();
+                                return Some(connect(&self.app));
                             }
                         }
                         _ => {
@@ -75,6 +76,7 @@ impl Screen for NicknameScreen {
                     if self.menu.sections[selection].text == "play!" {
                         if !self.nick_section().text.is_empty() {
                             *NICK.lock().unwrap() = self.nick_section().text.clone();
+                            return Some(connect(&self.app));
                         }
                     }
                 }
@@ -84,10 +86,6 @@ impl Screen for NicknameScreen {
             }
             _ => {}
         }
-        if NICK.lock().unwrap().is_empty() {
-            None
-        } else {
-            Some(connect(&self.app))
-        }
+        None
     }
 }

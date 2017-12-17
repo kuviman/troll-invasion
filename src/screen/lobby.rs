@@ -76,7 +76,8 @@ impl Screen for Lobby {
                     }
                 } else if let Some(selection) = self.menu.handle(event) {
                     if selection == 1 {
-                        NICK.lock().unwrap().clear();
+                        self.sender.send("-");
+                        *RECEIVER.lock().unwrap() = None;
                         return Some(Box::new(NicknameScreen::new(&self.app)));
                     } else if selection == CREATE_INDEX {
                         if !self.name_section().text.is_empty() {
