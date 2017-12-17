@@ -2,7 +2,7 @@ use ::*;
 
 pub fn run(port: u16) {
     let mut jar = std::process::Command::new("java");
-    jar.arg("-jar").arg("TrollInvasion.jar");
+    jar.arg("-jar").arg(std::path::Path::new("target").join("troll-invasion.jar"));
     jar.stdin(std::process::Stdio::piped());
     jar.stdout(std::process::Stdio::piped());
     let jar = jar.spawn().expect("Failed to start TrollInvasion.jar");

@@ -1,0 +1,3 @@
+[submodule "server-src"]
+	path = server-src
+	url = https://github.com/21las21/TrollInvasion.git
