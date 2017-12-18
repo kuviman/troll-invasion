@@ -1,11 +1,13 @@
 use ::*;
 
 mod menu_screen;
+mod winner;
 mod game;
 mod lobby;
 mod game_lobby;
 mod nickname;
 
+pub use self::winner::*;
 pub use self::menu_screen::*;
 pub use self::game::*;
 pub use self::lobby::*;

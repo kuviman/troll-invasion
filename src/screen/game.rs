@@ -29,7 +29,7 @@ impl Screen for Game {
             Event::Event(event) => self.handle_event(event),
             Event::Draw(framebuffer) => self.draw(framebuffer),
             Event::Update(delta_time) => self.update(delta_time),
-            Event::Message(message) => self.handle_message(message),
+            Event::Message(message) => { return self.handle_message(message); }
         }
         None
     }
@@ -68,7 +68,7 @@ impl Game {
         }
     }
 
-    fn handle_message(&mut self, message: ServerMessage) {
+    fn handle_message(&mut self, message: ServerMessage) -> Option<Box<Screen>> {
         use ServerMessage::*;
         match message {
             MapLine(index, line) => {
@@ -90,8 +90,12 @@ impl Game {
             EnergyLeft(energy) => {
                 self.energy_left = Some(energy);
             }
+            GameFinish { winner } => {
+                return Some(Box::new(WinnerScreen::new(&self.app, self.nick.clone(), winner, self.sender.clone())));
+            }
             _ => {}
         }
+        None
     }
 
     fn update(&mut self, delta_time: f64) {}
