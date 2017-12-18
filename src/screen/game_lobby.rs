@@ -66,7 +66,7 @@ impl Screen for GameLobby {
                     } else if selection == READY_INDEX {
                         self.ready = !self.ready;
                         self.menu.sections[READY_INDEX] = ready_section(self.ready);
-                        self.sender.send(if self.ready { "ready" } else { "not ready" });
+                        self.sender.send(if self.ready { "ready" } else { "unready" });
                     }
                 }
             }

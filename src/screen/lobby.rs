@@ -101,7 +101,7 @@ impl Lobby {
     }
     fn connect(&mut self, index: usize) -> Box<Screen> {
         let game_name = self.games.keys().nth(index).unwrap();
-        self.sender.send(format!("joinGame {}", game_name));
+        self.sender.send(format!("joinGame {} player", game_name));
         Box::new(screen::GameLobby::new(&self.app, self.nick.clone(), game_name.clone(), self.sender.clone()))
     }
     fn name_section(&mut self) -> &mut MenuSection {
