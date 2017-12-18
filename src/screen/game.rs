@@ -93,6 +93,11 @@ impl Game {
             GameFinish { winner } => {
                 return Some(Box::new(WinnerScreen::new(&self.app, self.nick.clone(), winner, self.sender.clone())));
             }
+            GameLeft { nick } => {
+                if nick == self.nick {
+                    return Some(Box::new(Lobby::new(&self.app, self.nick.clone(), self.sender.clone())));
+                }
+            }
             _ => {}
         }
         None
@@ -168,9 +173,9 @@ impl Game {
             for _ in conrod::widget::Button::new()
                 .mid_left_with_margin_on(ui.window, 50.0)
                 .w_h(150.0, 50.0)
-                .label("READY")
+                .label("LEAVE")
                 .set(self.ready_button, ui) {
-                news.push("ready");
+                news.push("leaveGame");
             }
             for _ in conrod::widget::Button::new()
                 .down_from(self.ready_button, 10.0)

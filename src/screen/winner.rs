@@ -56,6 +56,7 @@ impl Screen for WinnerScreen {
                     return Some(Box::new(Lobby::new(&self.app, self.nick.clone(), self.sender.clone())));
                 } else if let Some(selection) = self.menu.handle(event) {
                     if self.menu.sections[selection].text == "leave" {
+                        self.sender.send("leaveGame");
                         return Some(Box::new(Lobby::new(&self.app, self.nick.clone(), self.sender.clone())));
                     }
                 }
