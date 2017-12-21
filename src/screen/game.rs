@@ -79,6 +79,9 @@ impl Game {
             SelectCell { row, col } => {
                 self.selected_cell = Some(vec2(row, col));
             }
+            DeselectCell => {
+                self.selected_cell = None;
+            }
             Turn { nick } => {
                 self.current_player = nick;
                 self.energy_left = None;

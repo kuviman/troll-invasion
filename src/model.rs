@@ -16,6 +16,7 @@ pub enum ServerMessage {
         row: usize,
         col: usize,
     },
+    DeselectCell,
     GameFinish {
         winner: String,
     },
@@ -55,6 +56,7 @@ impl ServerMessage {
                 row: args.next().unwrap().parse().unwrap(),
                 col: args.next().unwrap().parse().unwrap(),
             },
+            "deselectCell" => DeselectCell,
             "gameFinish" => GameFinish {
                 winner: args.next().unwrap().to_owned(),
             },
