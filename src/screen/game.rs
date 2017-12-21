@@ -7,6 +7,7 @@ struct Vertex {
 
 pub struct Game {
     nick: String,
+    font: codevisual::Font,
     hex_geometry: ugli::VertexBuffer<Vertex>,
     map: Vec<Vec<Option<GameCell>>>,
     material: codevisual::Material,
@@ -16,10 +17,6 @@ pub struct Game {
     selected_cell: Option<Vec2<usize>>,
     hovered_cell: Option<Vec2<usize>>,
     matrix: std::cell::Cell<Mat4<f32>>,
-    ui: Ui,
-    ready_button: conrod::widget::Id,
-    skip_button: conrod::widget::Id,
-    current_status: conrod::widget::Id,
     sender: connection::Sender,
 }
 
@@ -35,12 +32,14 @@ impl Screen for Game {
     }
 }
 
+const LEAVE_SIZE: f32 = 2.0;
+const LEAVE_OFFSET: f32 = 2.0;
+
+const STATUS_SIZE: f32 = 4.0;
+const STATUS_OFFSET: f32 = 2.0;
+
 impl Game {
     pub fn new(app: &Rc<codevisual::App>, nick: String, sender: connection::Sender) -> Self {
-        let mut ui = Ui::new(app);
-        let skip_button = ui.widget_id_generator().next();
-        let ready_button = ui.widget_id_generator().next();
-        let current_status = ui.widget_id_generator().next();
         Self {
             hovered_cell: None,
             app: app.clone(),
@@ -59,12 +58,9 @@ impl Game {
                 }
                 vs
             }),
-            ui,
-            skip_button,
-            ready_button,
-            current_status,
             energy_left: None,
             sender,
+            font: codevisual::Font::new(app.ugli_context(), (include_bytes!("font.ttf") as &[u8]).to_owned()),
         }
     }
 
@@ -157,50 +153,67 @@ impl Game {
             }
         }
 
-        let current_status = if self.map.is_empty() {
-            String::from("Getting ready")
-        } else {
-            format!("{}'s turn: {}", self.current_player, match self.energy_left {
-                None => String::from("Attack phase"),
-                Some(energy) => format!("Upgrade phase ({} energy left)", energy),
-            })
-        };
+        let current_status = format!("{}'s turn: {}", self.current_player, match self.energy_left {
+            None => String::from("Attack phase"),
+            Some(energy) => format!("Upgrade phase ({} energy left)", energy),
+        });
 
-        use conrod::{Widget, Positionable, Sizeable, Labelable, Colorable};
-        let mut news = Vec::new();
-        {
-            let ui = &mut self.ui.set_widgets();
-            for _ in conrod::widget::Button::new()
-                .mid_left_with_margin_on(ui.window, 50.0)
-                .w_h(150.0, 50.0)
-                .label("LEAVE")
-                .set(self.ready_button, ui) {
-                news.push("leaveGame");
-            }
-            for _ in conrod::widget::Button::new()
-                .down_from(self.ready_button, 10.0)
-                .w_h(150.0, 50.0)
-                .label("Next phase")
-                .set(self.skip_button, ui) {
-                news.push("next phase");
-            }
-            conrod::widget::Text::new(&current_status)
-                .mid_bottom_with_margin_on(ui.window, 50.0)
-                .color(conrod::color::WHITE)
-                .set(self.current_status, ui);
+        let framebuffer_size = framebuffer.get_size();
+
+        let unit = framebuffer_size.y as f32 / 100.0;
+        self.font.draw_aligned(
+            framebuffer,
+            "leave",
+            vec2(framebuffer_size.x as f32 - LEAVE_OFFSET * unit,
+                 framebuffer_size.y as f32 - (LEAVE_OFFSET + LEAVE_SIZE) * unit),
+            1.0, LEAVE_SIZE * unit,
+            if self.leave_rect_hover() {
+                Color::RED
+            } else {
+                Color::WHITE
+            });
+        if self.status_hover() {
+            self.font.draw_aligned(
+                framebuffer,
+                if self.energy_left.is_none() { "next phase" } else { "end turn" },
+                vec2(framebuffer_size.x as f32 / 2.0, STATUS_OFFSET * unit),
+                0.5, STATUS_SIZE * unit, Color::RED);
+        } else {
+            self.font.draw_aligned(
+                framebuffer,
+                &current_status,
+                vec2(framebuffer_size.x as f32 / 2.0, STATUS_OFFSET * unit),
+                0.5, STATUS_SIZE * unit, Color::WHITE);
         }
-        self.ui.draw(framebuffer);
-        for new in news {
-            self.sender.send(new);
-        }
+    }
+
+    fn status_hover(&self) -> bool {
+        let window_size = self.app.window().get_size();
+        let cursor_pos = self.app.window().get_cursor_position();
+        cursor_pos.y as f32 > window_size.y as f32 * (1.0 - (STATUS_SIZE * 2.0 + STATUS_OFFSET) / 100.0)
+    }
+
+    fn leave_rect_hover(&self) -> bool {
+        let window_size = self.app.window().get_size();
+        let cursor_pos = self.app.window().get_cursor_position();
+        let cursor_pos = vec2(cursor_pos.x as f32, window_size.y as f32 - cursor_pos.y as f32);
+        let unit = window_size.y as f32 / 100.0;
+        let rect = Rect::from_corners(
+            vec2(window_size.x as f32 - LEAVE_OFFSET * 2.0 * unit - self.font.measure("leave", LEAVE_SIZE * unit).unwrap().width(),
+                 window_size.y as f32 - LEAVE_OFFSET * 2.0 * unit - LEAVE_SIZE * unit),
+            vec2(window_size.x as f32, window_size.y as f32));
+        rect.contains(cursor_pos)
     }
 
     fn handle_event(&mut self, event: codevisual::Event) {
         let window_size = self.app.window().get_size();
-        self.ui.handle_event(event.clone());
         match event {
             codevisual::Event::MouseDown { button: codevisual::MouseButton::Left, position: pos } => {
-                if !self.map.is_empty() {
+                if self.leave_rect_hover() {
+                    self.sender.send("leaveGame");
+                } else if self.status_hover() {
+                    self.sender.send("next phase");
+                } else if !self.map.is_empty() {
                     if let Some(Vec2 { x, y }) = self.find_pos(vec2(pos.x as f32, pos.y as f32)) {
                         self.sender.send(format!("{} {}", x, y));
                     }

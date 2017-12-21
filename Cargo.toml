@@ -8,8 +8,6 @@ argparse = "*"
 log = "*"
 env_logger = "*"
 lazy_static = "*"
-conrod = "0.56.0"
-rusttype = "0.2.0"
 codevisual = { git = "https://github.com/kuviman/codevisual.git" }
 ugli = { git = "https://github.com/kuviman/codevisual.git" }
 ws = "*"

@@ -3,8 +3,6 @@ extern crate env_logger;
 extern crate argparse;
 #[macro_use]
 extern crate lazy_static;
-extern crate conrod;
-extern crate rusttype;
 
 #[macro_use]
 extern crate codevisual;
@@ -14,14 +12,12 @@ extern crate ugli;
 pub(crate) use codevisual::prelude::*;
 
 mod server;
-mod ui;
 mod screen;
 mod model;
 mod connection;
 
 pub(crate) use model::*;
 pub(crate) use screen::*;
-pub(crate) use ui::Ui;
 
 lazy_static! {
     static ref HOST: Mutex<String> = Mutex::new(String::new());
