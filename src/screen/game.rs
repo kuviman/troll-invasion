@@ -222,6 +222,11 @@ impl Game {
                     }
                 }
             }
+            codevisual::Event::MouseDown { button: codevisual::MouseButton::Right, position: pos } => {
+                if let Some(Vec2 { x, y }) = self.find_pos(vec2(pos.x as f32, pos.y as f32)) {
+                    self.sender.send(format!("fullUp {} {}", x, y));
+                }
+            }
             codevisual::Event::MouseMove { position: pos } => {
                 self.hovered_cell = self.find_pos(vec2(pos.x as f32, pos.y as f32));
             }
