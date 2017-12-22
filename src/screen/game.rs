@@ -153,7 +153,12 @@ impl Game {
                                 self.hex(framebuffer,
                                          center,
                                          2.0 / 3.0,
-                                         Color { alpha: 0.5, ..color(self.player_colors[name]) });
+                                         self.player_colors.get(name).map_or(
+                                             Color::rgba(1.0, 1.0, 1.0, 0.1),
+                                             |&c| Color {
+                                                 alpha: 0.5,
+                                                 ..color(c)
+                                             }));
                             }
                         }
                         if Some(vec2(i, j)) == self.hovered_cell {

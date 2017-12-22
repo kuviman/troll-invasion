@@ -1,3 +1,23 @@
+use ::*;
+
+#[derive(Copy, Clone)]
+pub enum PlayType {
+    Player,
+    Spectator,
+}
+
+impl std::str::FromStr for PlayType {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "player" => Ok(PlayType::Player),
+            "spectator" => Ok(PlayType::Spectator),
+            _ => Err(()),
+        }
+    }
+}
+
 pub enum ServerMessage {
     ReadyStatus {
         nick: String,
@@ -31,6 +51,7 @@ pub enum ServerMessage {
     },
     GameEntered {
         name: String,
+        typ: PlayType,
     },
     HoverCell {
         nick: String,
@@ -40,6 +61,9 @@ pub enum ServerMessage {
     HoverNone {
         nick: String,
     },
+    SpectatorJoin {
+        nick: String,
+    }
 }
 
 impl ServerMessage {
@@ -95,6 +119,7 @@ impl ServerMessage {
             },
             "gameEntered" => GameEntered {
                 name: args.next().unwrap().to_owned(),
+                typ: args.next().unwrap().parse().unwrap(),
             },
             "gameLeft" => GameLeft {
                 nick: args.next().unwrap().to_owned(),
@@ -112,6 +137,7 @@ impl ServerMessage {
                     }
                 }
             }
+            "spectatorJoin" => SpectatorJoin { nick: args.next().unwrap().parse().unwrap() },
             _ => panic!("Unexpected message: {:?}", message)
         }
     }

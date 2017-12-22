@@ -45,12 +45,18 @@ impl Screen for Lobby {
                 self.menu.draw(framebuffer);
             }
             Event::Message(message) => {
-                if let ServerMessage::GameList { name, player_count } = message {
-                    if self.games.contains_key(&name) {
-                        *self.games.get_mut(&name).unwrap() = player_count;
-                    } else {
-                        self.games.insert(name, player_count);
+                match message {
+                    ServerMessage::GameList { name, player_count } => {
+                        if self.games.contains_key(&name) {
+                            *self.games.get_mut(&name).unwrap() = player_count;
+                        } else {
+                            self.games.insert(name, player_count);
+                        }
                     }
+                    ServerMessage::GameEntered { name, typ } => {
+                        return Some(Box::new(GameLobby::new(&self.app, self.nick.clone(), name, self.sender.clone(), typ)));
+                    }
+                    _ => {}
                 }
             }
             Event::Event(event) => {
@@ -61,7 +67,7 @@ impl Screen for Lobby {
                         }
                         codevisual::Key::Enter => {
                             if !self.name_section().text.is_empty() {
-                                return Some(self.create_game());
+                                self.create_game();
                             }
                         }
                         _ => {
@@ -74,17 +80,26 @@ impl Screen for Lobby {
                             }
                         }
                     }
-                } else if let Some(selection) = self.menu.handle(event) {
+                } else if let Some(selection) = self.menu.handle(event.clone()) {
                     if selection == 1 {
                         self.sender.send("-");
                         *RECEIVER.lock().unwrap() = None;
                         return Some(Box::new(NicknameScreen::new(&self.app)));
                     } else if selection == CREATE_INDEX {
                         if !self.name_section().text.is_empty() {
-                            return Some(self.create_game());
+                            self.create_game();
                         }
                     } else if selection >= GAMES_START && !self.games.is_empty() {
-                        return Some(self.connect(selection - GAMES_START));
+                        self.connect(selection - GAMES_START);
+                    }
+                } else if let codevisual::Event::MouseDown { button: codevisual::MouseButton::Right, position } = event {
+                    if let Some(selection) = self.menu.handle(codevisual::Event::MouseDown {
+                        button: codevisual::MouseButton::Left,
+                        position,
+                    }) {
+                        if selection >= GAMES_START && !self.games.is_empty() {
+                            self.connect_spectator(selection - GAMES_START);
+                        }
                     }
                 }
             }
@@ -94,15 +109,17 @@ impl Screen for Lobby {
 }
 
 impl Lobby {
-    fn create_game(&mut self) -> Box<Screen> {
+    fn create_game(&mut self) {
         let name = self.name_section().text.clone();
         self.sender.send(format!("createGame {}", name));
-        Box::new(screen::GameLobby::new(&self.app, self.nick.clone(), name, self.sender.clone()))
     }
-    fn connect(&mut self, index: usize) -> Box<Screen> {
+    fn connect(&mut self, index: usize) {
         let game_name = self.games.keys().nth(index).unwrap();
         self.sender.send(format!("joinGame {} player", game_name));
-        Box::new(screen::GameLobby::new(&self.app, self.nick.clone(), game_name.clone(), self.sender.clone()))
+    }
+    fn connect_spectator(&mut self, index: usize) {
+        let game_name = self.games.keys().nth(index).unwrap();
+        self.sender.send(format!("joinGame {} spectator", game_name));
     }
     fn name_section(&mut self) -> &mut MenuSection {
         &mut self.menu.sections[CREATE_INDEX - 1]

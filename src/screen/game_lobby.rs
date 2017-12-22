@@ -7,6 +7,7 @@ pub struct GameLobby {
     sender: connection::Sender,
     ready: bool,
     players: BTreeMap<String, bool>,
+    play_type: PlayType,
 }
 
 const READY_INDEX: usize = 5;
@@ -65,7 +66,7 @@ impl Screen for GameLobby {
                         self.sender.send("leaveGame");
                     } else if selection == READY_INDEX {
                         self.ready = !self.ready;
-                        self.menu.sections[READY_INDEX] = ready_section(self.ready);
+                        self.menu.sections[READY_INDEX] = ready_section(self.ready, self.play_type);
                         self.sender.send(if self.ready { "ready" } else { "unready" });
                     }
                 }
@@ -76,24 +77,34 @@ impl Screen for GameLobby {
     }
 }
 
-fn ready_section(ready: bool) -> MenuSection {
-    MenuSection {
-        text: if ready { "ready".to_owned() } else { "not ready".to_owned() },
-        size: 10.0,
-        color: Color::WHITE,
-        back_color: if ready { Color::rgb(0.0, 0.5, 0.0) } else { Color::rgb(0.5, 0.0, 0.0) },
-        hover_color: Some(Color::rgb(0.5, 0.5, 0.5)),
+fn ready_section(ready: bool, play_type: PlayType) -> MenuSection {
+    match play_type {
+        PlayType::Player => MenuSection {
+            text: if ready { "ready".to_owned() } else { "not ready".to_owned() },
+            size: 10.0,
+            color: Color::WHITE,
+            back_color: if ready { Color::rgb(0.0, 0.5, 0.0) } else { Color::rgb(0.5, 0.0, 0.0) },
+            hover_color: Some(Color::rgb(0.5, 0.5, 0.5)),
+        },
+        PlayType::Spectator => MenuSection {
+            text: String::from("spectator"),
+            size: 10.0,
+            color: Color::WHITE,
+            back_color: Color::BLACK,
+            hover_color: None,
+        }
     }
 }
 
 impl GameLobby {
-    pub fn new(app: &Rc<codevisual::App>, nick: String, game_name: String, sender: connection::Sender) -> Self {
+    pub fn new(app: &Rc<codevisual::App>, nick: String, game_name: String, sender: connection::Sender, typ: PlayType) -> Self {
         Self {
             app: app.clone(),
             nick: nick.clone(),
             sender,
             ready: false,
             players: BTreeMap::new(),
+            play_type: typ,
             menu: MenuScreen::new(app, vec![
                 MenuSection {
                     text: String::from("TroLL InvaSioN"),
@@ -118,7 +129,7 @@ impl GameLobby {
                 },
                 MenuSection::new_empty(1.0, Color::rgb(0.05, 0.05, 0.05)),
                 MenuSection::new_empty(10.0, Color::BLACK),
-                ready_section(false),
+                ready_section(false, typ),
                 MenuSection::new_empty(10.0, Color::BLACK),
                 MenuSection {
                     text: String::from("players:"),
