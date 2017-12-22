@@ -9,6 +9,8 @@ pub struct Game {
     nick: String,
     font: codevisual::Font,
     hex_geometry: ugli::VertexBuffer<Vertex>,
+    player_colors: HashMap<String, char>,
+    player_hovers: HashMap<String, Vec2<usize>>,
     map: Vec<Vec<Option<GameCell>>>,
     material: codevisual::Material,
     app: Rc<codevisual::App>,
@@ -29,6 +31,18 @@ impl Screen for Game {
             Event::Message(message) => { return self.handle_message(message); }
         }
         None
+    }
+}
+
+fn color(color: char) -> Color {
+    match color {
+        'A' => Color::RED,
+        'B' => Color::GREEN,
+        'C' => Color::BLUE,
+        'D' => Color::YELLOW,
+        'E' => Color::MAGENTA,
+        'F' => Color::CYAN,
+        _ => unreachable!("Do not have that much colors")
     }
 }
 
@@ -61,6 +75,8 @@ impl Game {
             energy_left: None,
             sender,
             font: codevisual::Font::new(app.ugli_context(), (include_bytes!("font.ttf") as &[u8]).to_owned()),
+            player_colors: HashMap::new(),
+            player_hovers: HashMap::new(),
         }
     }
 
@@ -97,6 +113,17 @@ impl Game {
                     return Some(Box::new(Lobby::new(&self.app, self.nick.clone(), self.sender.clone())));
                 }
             }
+            PlayerColor { nick, color } => {
+                self.player_colors.insert(nick, color);
+            }
+            HoverCell { nick, row, col } => {
+                if nick != self.nick {
+                    self.player_hovers.insert(nick, vec2(row, col));
+                }
+            }
+            HoverNone { nick } => {
+                self.player_hovers.remove(&nick);
+            }
             _ => {}
         }
         None
@@ -121,6 +148,14 @@ impl Game {
                 for (j, cell) in line.iter().enumerate() {
                     if let Some(cell) = *cell {
                         let center = vec2((j as f32 + 0.5) / 3.0.sqrt(), i as f32 + 0.5);
+                        for (name, &cell) in &self.player_hovers {
+                            if vec2(i, j) == cell {
+                                self.hex(framebuffer,
+                                         center,
+                                         2.0 / 3.0,
+                                         Color { alpha: 0.5, ..color(self.player_colors[name]) });
+                            }
+                        }
                         if Some(vec2(i, j)) == self.hovered_cell {
                             self.hex(framebuffer,
                                      center,
@@ -136,19 +171,10 @@ impl Game {
                                      Color::rgb(0.2, 0.2, 0.2)
                                  });
                         if let GameCell::Populated { count, owner } = cell {
-                            let color = match owner {
-                                'A' => Color::rgb(1.0, 0.0, 0.0),
-                                'B' => Color::rgb(0.0, 1.0, 0.0),
-                                'C' => Color::rgb(0.0, 0.0, 1.0),
-                                'D' => Color::rgb(1.0, 1.0, 0.0),
-                                'E' => Color::rgb(0.0, 1.0, 1.0),
-                                'F' => Color::rgb(1.0, 0.0, 1.0),
-                                _ => unreachable!()
-                            };
                             for index in 0..count {
                                 let pos = center + Vec2::rotated(vec2(0.3, 0.0), (index as f32 / count as f32) * 2.0 * std::f32::consts::PI);
                                 let size = 0.05;
-                                self.hex(framebuffer, pos, size, color);
+                                self.hex(framebuffer, pos, size, color(owner));
                             }
                         }
                     }
@@ -228,7 +254,14 @@ impl Game {
                 }
             }
             codevisual::Event::MouseMove { position: pos } => {
-                self.hovered_cell = self.find_pos(vec2(pos.x as f32, pos.y as f32));
+                let cell = self.find_pos(vec2(pos.x as f32, pos.y as f32));
+                if self.hovered_cell != cell {
+                    self.sender.send(match cell {
+                        None => format!("hover none"),
+                        Some(pos) => format!("hover {} {}", pos.x, pos.y),
+                    });
+                    self.hovered_cell = cell;
+                }
             }
             _ => {}
         }

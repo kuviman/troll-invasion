@@ -138,7 +138,7 @@ impl Lobby {
                     hover_color: None,
                 },
                 MenuSection {
-                    text: String::new(),
+                    text: String::from("newgame"),
                     size: 10.0,
                     color: Color::WHITE,
                     back_color: Color::rgb(0.2, 0.2, 0.4),

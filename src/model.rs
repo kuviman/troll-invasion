@@ -32,6 +32,14 @@ pub enum ServerMessage {
     GameEntered {
         name: String,
     },
+    HoverCell {
+        nick: String,
+        row: usize,
+        col: usize,
+    },
+    HoverNone {
+        nick: String,
+    },
 }
 
 impl ServerMessage {
@@ -91,6 +99,19 @@ impl ServerMessage {
             "gameLeft" => GameLeft {
                 nick: args.next().unwrap().to_owned(),
             },
+            "hover" => {
+                let nick = args.next().unwrap().to_owned();
+                let next = args.next().unwrap();
+                if next == "none" {
+                    HoverNone { nick }
+                } else {
+                    HoverCell {
+                        nick,
+                        row: next.parse().unwrap(),
+                        col: args.next().unwrap().parse().unwrap(),
+                    }
+                }
+            }
             _ => panic!("Unexpected message: {:?}", message)
         }
     }
