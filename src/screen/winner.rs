@@ -8,7 +8,7 @@ pub struct WinnerScreen {
 }
 
 impl WinnerScreen {
-    pub fn new(app: &Rc<codevisual::App>, nick: String, winner: String, sender: connection::Sender) -> Self {
+    pub fn new(app: &Rc<codevisual::App>, nick: String, winner: String, color: Color, sender: connection::Sender) -> Self {
         Self {
             app: app.clone(),
             nick,
@@ -33,7 +33,7 @@ impl WinnerScreen {
                 MenuSection {
                     text: winner,
                     size: 10.0,
-                    color: Color::WHITE,
+                    color,
                     back_color: Color::BLACK,
                     hover_color: None,
                 },

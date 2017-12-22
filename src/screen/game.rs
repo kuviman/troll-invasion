@@ -106,7 +106,11 @@ impl Game {
                 self.energy_left = Some(energy);
             }
             GameFinish { winner } => {
-                return Some(Box::new(WinnerScreen::new(&self.app, self.nick.clone(), winner, self.sender.clone())));
+                return Some(Box::new(WinnerScreen::new(
+                    &self.app, self.nick.clone(),
+                    winner.clone(),
+                    color(self.player_colors[&winner]),
+                    self.sender.clone())));
             }
             GameLeft { nick } => {
                 if nick == self.nick {
