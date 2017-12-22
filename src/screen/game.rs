@@ -34,7 +34,7 @@ impl Screen for Game {
     }
 }
 
-fn color(color: char) -> Color {
+pub fn player_color(color: char) -> Color {
     match color {
         'A' => Color::RED,
         'B' => Color::GREEN,
@@ -109,7 +109,7 @@ impl Game {
                 return Some(Box::new(WinnerScreen::new(
                     &self.app, self.nick.clone(),
                     winner.clone(),
-                    color(self.player_colors[&winner]),
+                    player_color(self.player_colors[&winner]),
                     self.sender.clone())));
             }
             GameLeft { nick } => {
@@ -161,7 +161,7 @@ impl Game {
                                              Color::rgba(1.0, 1.0, 1.0, 0.1),
                                              |&c| Color {
                                                  alpha: 0.5,
-                                                 ..color(c)
+                                                 ..player_color(c)
                                              }));
                             }
                         }
@@ -183,7 +183,7 @@ impl Game {
                             for index in 0..count {
                                 let pos = center + Vec2::rotated(vec2(0.3, 0.0), (index as f32 / count as f32) * 2.0 * std::f32::consts::PI);
                                 let size = 0.05;
-                                self.hex(framebuffer, pos, size, color(owner));
+                                self.hex(framebuffer, pos, size, player_color(owner));
                             }
                         }
                     }

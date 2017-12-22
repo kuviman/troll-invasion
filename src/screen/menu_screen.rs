@@ -81,29 +81,32 @@ impl MenuScreen {
             pos -= section.size;
         }
     }
-    fn draw_section(&self, index: usize, section: &MenuSection, framebuffer: &mut ugli::Framebuffer, pos: f32) {
-        let pos = pos / 100.0;
-        let frame_size = framebuffer.get_size();
-        let frame_size = vec2(frame_size.x as f32, frame_size.y as f32);
+    pub fn draw_rect(&self, framebuffer: &mut ugli::Framebuffer, p1: Vec2<f32>, p2: Vec2<f32>, color: Color) {
         {
             let mut geometry = self.geometry.borrow_mut();
             geometry.clear();
-            let y1 = pos * 2.0 - 1.0;
-            let y2 = y1 - section.size / 100.0 * 2.0;
-            geometry.push(Vertex { a_pos: vec2(-1.0, y1) });
-            geometry.push(Vertex { a_pos: vec2(1.0, y1) });
-            geometry.push(Vertex { a_pos: vec2(1.0, y2) });
-            geometry.push(Vertex { a_pos: vec2(-1.0, y2) });
+            geometry.push(Vertex { a_pos: p1 });
+            geometry.push(Vertex { a_pos: vec2(p1.x, p2.y) });
+            geometry.push(Vertex { a_pos: p2 });
+            geometry.push(Vertex { a_pos: vec2(p2.x, p1.y) });
         }
         ugli::draw(framebuffer,
                    &self.color_material.ugli_program(),
                    ugli::DrawMode::TriangleFan,
                    &*self.geometry.borrow(),
-                   uniforms!(u_color: section.back_color),
+                   uniforms!(u_color: color),
                    ugli::DrawParameters {
                        depth_func: None,
                        ..default()
                    });
+    }
+    fn draw_section(&self, index: usize, section: &MenuSection, framebuffer: &mut ugli::Framebuffer, pos: f32) {
+        let pos = pos / 100.0;
+        let frame_size = framebuffer.get_size();
+        let frame_size = vec2(frame_size.x as f32, frame_size.y as f32);
+        let y1 = pos * 2.0 - 1.0;
+        let y2 = y1 - section.size / 100.0 * 2.0;
+        self.draw_rect(framebuffer, vec2(-1.0, y1), vec2(1.0, y2), section.back_color);
         self.font.draw_aligned(framebuffer,
                                &section.text,
                                vec2(frame_size.x / 2.0, frame_size.y * (pos - section.size / 100.0)),
