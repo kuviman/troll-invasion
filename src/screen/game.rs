@@ -200,11 +200,6 @@ impl Game {
             }
         }
 
-        let current_status = format!("{}'s turn: {}", self.current_player, match self.energy_left {
-            None => String::from("Attack phase"),
-            Some(energy) => format!("Upgrade phase ({} energy left)", energy),
-        });
-
         let framebuffer_size = framebuffer.get_size();
 
         let unit = framebuffer_size.y as f32 / 100.0;
@@ -219,18 +214,25 @@ impl Game {
             } else {
                 Color::WHITE
             });
-        if self.status_hover() {
-            self.font.draw_aligned(
-                framebuffer,
-                if self.energy_left.is_none() { "next phase" } else { "end turn" },
-                vec2(framebuffer_size.x as f32 / 2.0, STATUS_OFFSET * unit),
-                0.5, STATUS_SIZE * unit, Color::RED);
-        } else {
-            self.font.draw_aligned(
-                framebuffer,
-                &current_status,
-                vec2(framebuffer_size.x as f32 / 2.0, STATUS_OFFSET * unit),
-                0.5, STATUS_SIZE * unit, Color::WHITE);
+
+        if !self.current_player.is_empty() {
+            let current_status = format!("{}'s turn: {}", self.current_player, match self.energy_left {
+                None => String::from("Attack phase"),
+                Some(energy) => format!("Upgrade phase ({} energy left)", energy),
+            });
+            if self.status_hover() {
+                self.font.draw_aligned(
+                    framebuffer,
+                    if self.energy_left.is_none() { "next phase" } else { "end turn" },
+                    vec2(framebuffer_size.x as f32 / 2.0, STATUS_OFFSET * unit),
+                    0.5, STATUS_SIZE * unit, Color::WHITE);
+            } else {
+                self.font.draw_aligned(
+                    framebuffer,
+                    &current_status,
+                    vec2(framebuffer_size.x as f32 / 2.0, STATUS_OFFSET * unit),
+                    0.5, STATUS_SIZE * unit, player_color(self.player_colors[&self.current_player]));
+            }
         }
     }
 
