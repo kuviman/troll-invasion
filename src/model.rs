@@ -67,11 +67,11 @@ pub enum ServerMessage {
 }
 
 impl ServerMessage {
-    pub fn parse(message: &str) -> Self {
+    pub fn parse(message: &str) -> Option<Self> {
         use ServerMessage::*;
         let mut args = message.split_whitespace();
         let command = args.next().unwrap();
-        match command {
+        Some(match command {
             "readyStatus" => ReadyStatus {
                 nick: args.next().unwrap().to_owned(),
                 ready: args.next().unwrap().parse().unwrap(),
@@ -138,8 +138,8 @@ impl ServerMessage {
                 }
             }
             "spectatorJoin" => SpectatorJoin { nick: args.next().unwrap().parse().unwrap() },
-            _ => panic!("Unexpected message: {:?}", message)
-        }
+            _ => return None
+        })
     }
 }
 

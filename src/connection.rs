@@ -38,8 +38,11 @@ pub fn connect(nick: &str, host: &str, port: u16) -> (Sender, Receiver) {
                         fn on_message(&mut self, message: ws::Message) -> ws::Result<()> {
                             let message = message.into_text().unwrap();
                             eprintln!("{}", message);
-                            let message = ServerMessage::parse(&message);
-                            self.sender.send(message).unwrap();
+                            if let Some(message) = ServerMessage::parse(&message) {
+                                self.sender.send(message).unwrap();
+                            } else {
+                                eprintln!("Message unsupported: {:?}", message);
+                            }
                             Ok(())
                         }
                     }
