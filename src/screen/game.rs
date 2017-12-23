@@ -19,6 +19,7 @@ pub struct Game {
     selected_cell: Option<Vec2<usize>>,
     hovered_cell: Option<Vec2<usize>>,
     matrix: std::cell::Cell<Mat4<f32>>,
+    can_moves: Vec<Vec2<usize>>,
     sender: connection::Sender,
 }
 
@@ -55,6 +56,7 @@ const STATUS_OFFSET: f32 = 2.0;
 impl Game {
     pub fn new(app: &Rc<codevisual::App>, nick: String, sender: connection::Sender) -> Self {
         Self {
+            can_moves: Vec::new(),
             hovered_cell: None,
             app: app.clone(),
             nick,
@@ -128,6 +130,9 @@ impl Game {
             HoverNone { nick } => {
                 self.player_hovers.remove(&nick);
             }
+            CanMove { cells } => {
+                self.can_moves = cells;
+            }
             _ => {}
         }
         None
@@ -152,6 +157,10 @@ impl Game {
                 for (j, cell) in line.iter().enumerate() {
                     if let Some(cell) = *cell {
                         let center = vec2((j as f32 + 0.5) / 3.0.sqrt(), i as f32 + 0.5);
+                        if self.can_moves.contains(&vec2(i, j)) {
+                            self.hex(framebuffer, center, 2.0 / 3.0,
+                                     Color::rgba(0.5, 0.5, 0.5, 0.5));
+                        }
                         for (name, &cell) in &self.player_hovers {
                             if vec2(i, j) == cell {
                                 self.hex(framebuffer,

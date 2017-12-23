@@ -63,7 +63,10 @@ pub enum ServerMessage {
     },
     SpectatorJoin {
         nick: String,
-    }
+    },
+    CanMove {
+        cells: Vec<Vec2<usize>>,
+    },
 }
 
 impl ServerMessage {
@@ -138,6 +141,17 @@ impl ServerMessage {
                 }
             }
             "spectatorJoin" => SpectatorJoin { nick: args.next().unwrap().parse().unwrap() },
+            "canMove" => CanMove {
+                cells: {
+                    let mut cells = Vec::new();
+                    while let Some(arg) = args.next() {
+                        let row: usize = arg.parse().unwrap();
+                        let col: usize = args.next().unwrap().parse().unwrap();
+                        cells.push(vec2(row, col));
+                    }
+                    cells
+                }
+            },
             _ => return None
         })
     }
