@@ -67,6 +67,7 @@ pub enum ServerMessage {
     CanMove {
         cells: Vec<Vec2<usize>>,
     },
+    EndMap,
 }
 
 impl ServerMessage {
@@ -152,6 +153,7 @@ impl ServerMessage {
                     cells
                 }
             },
+            "endMap" => EndMap,
             _ => return None
         })
     }

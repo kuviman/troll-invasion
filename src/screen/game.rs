@@ -12,6 +12,9 @@ pub struct Game {
     player_colors: HashMap<String, char>,
     player_hovers: HashMap<String, Vec2<usize>>,
     map: Vec<Vec<Option<GameCell>>>,
+    next_frame_time: f64,
+    next_map: Vec<Vec<Option<GameCell>>>,
+    map_queue: std::collections::VecDeque<Vec<Vec<Option<GameCell>>>>,
     material: codevisual::Material,
     app: Rc<codevisual::App>,
     current_player: String,
@@ -58,10 +61,12 @@ impl Game {
         Self {
             can_moves: Vec::new(),
             hovered_cell: None,
+            next_frame_time: 0.0,
             app: app.clone(),
             nick,
             current_player: String::new(),
             map: Vec::new(),
+            next_map: Vec::new(),
             selected_cell: None,
             material: codevisual::Material::new(app.ugli_context(), (), (), include_str!("shader.glsl")),
             matrix: std::cell::Cell::new(Mat4::identity()),
@@ -79,6 +84,7 @@ impl Game {
             font: codevisual::Font::new(app.ugli_context(), (include_bytes!("font.ttf") as &[u8]).to_owned()),
             player_colors: HashMap::new(),
             player_hovers: HashMap::new(),
+            map_queue: std::collections::VecDeque::new(),
         }
     }
 
@@ -86,10 +92,10 @@ impl Game {
         use ServerMessage::*;
         match message {
             MapLine(index, line) => {
-                while index >= self.map.len() {
-                    self.map.push(Vec::new());
-                }
-                self.map[index] = line;
+                self.next_map.push(line);
+            }
+            EndMap => {
+                self.map_queue.push_back(mem::replace(&mut self.next_map, Vec::new()));
             }
             UpgradePhase => {
                 self.selected_cell = None;
@@ -138,7 +144,15 @@ impl Game {
         None
     }
 
-    fn update(&mut self, delta_time: f64) {}
+    fn update(&mut self, delta_time: f64) {
+        self.next_frame_time -= delta_time;
+        if self.next_frame_time < 0.0 {
+            if let Some(map) = self.map_queue.pop_front() {
+                self.map = map;
+                self.next_frame_time = 0.1;
+            }
+        }
+    }
 
     fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
         ugli::clear(framebuffer,
