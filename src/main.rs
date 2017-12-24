@@ -1,5 +1,6 @@
+#[cfg(not(target_os = "emscripten"))]
 extern crate ws;
-extern crate env_logger;
+#[cfg(not(target_os = "emscripten"))]
 extern crate argparse;
 #[macro_use]
 extern crate lazy_static;
@@ -8,9 +9,13 @@ extern crate lazy_static;
 extern crate codevisual;
 #[macro_use]
 extern crate ugli;
+#[cfg(target_os = "emscripten")]
+#[macro_use]
+extern crate webby;
 
 pub(crate) use codevisual::prelude::*;
 
+#[cfg(not(target_os = "emscripten"))]
 mod server;
 mod screen;
 mod model;
@@ -93,10 +98,20 @@ fn connect(app: &Rc<codevisual::App>) -> Box<Screen> {
     Box::new(screen::Lobby::new(app, NICK.lock().unwrap().clone(), sender))
 }
 
-fn main() {
-    env_logger::init().unwrap();
+const DEFAULT_PORT: u16 = 8008;
 
-    let mut port: u16 = 8008;
+#[cfg(target_os = "emscripten")]
+fn main() {
+    webby::emscripten::run_script(include_str!("web.js"));
+    *PORT.lock().unwrap() = DEFAULT_PORT;
+    *HOST.lock().unwrap() = String::from("play.kuviman.com");
+    codevisual::run::<TrollInvasion>();
+}
+
+#[cfg(not(target_os = "emscripten"))]
+fn main() {
+    std::env::set_current_dir("static").unwrap();
+    let mut port: u16 = DEFAULT_PORT;
     let mut host = None;
     let mut start_server = false;
     let mut nickname = None;

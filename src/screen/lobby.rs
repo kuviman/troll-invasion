@@ -128,7 +128,7 @@ impl Lobby {
         Self {
             app: app.clone(),
             nick: nick.clone(),
-            next_query_time: 0.0,
+            next_query_time: 2.0,
             sender,
             menu: MenuScreen::new(app, vec![
                 MenuSection {

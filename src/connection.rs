@@ -3,6 +3,7 @@ use ::*;
 #[derive(Clone)]
 pub struct Sender {
     nick: String,
+    #[cfg(not(target_os = "emscripten"))]
     connection: Arc<Mutex<Option<ws::Sender>>>,
 }
 
@@ -13,7 +14,22 @@ pub struct Receiver {
 pub fn connect(nick: &str, host: &str, port: u16) -> (Sender, Receiver) {
     let nick = nick.to_owned();
     let (sender, receiver) = std::sync::mpsc::channel();
-    return {
+    #[cfg(target_os = "emscripten")]
+        return {
+        let callback = webby::Callback::from(move |addr: i32| {
+            let line = unsafe { std::ffi::CStr::from_ptr(addr as *mut _).to_string_lossy() };
+            println!("input {:?}", line);
+            if let Some(message) = ServerMessage::parse(&line) {
+                sender.send(message).unwrap();
+            }
+        });
+        js! {
+            TrollInvasion.connect(@{&*HOST.lock().unwrap()}, @{&*PORT.lock().unwrap()}, @{&nick}, @callback);
+        }
+        (Sender { nick }, Receiver { receiver })
+    };
+    #[cfg(not(target_os = "emscripten"))]
+        return {
         let connection = Arc::new(Mutex::new(None));
         thread::spawn({
             let connection = connection.clone();
@@ -61,9 +77,16 @@ pub fn connect(nick: &str, host: &str, port: u16) -> (Sender, Receiver) {
 
 impl Sender {
     pub fn send<S: std::borrow::Borrow<str>>(&mut self, message: S) {
-        if let Some(connection) = self.connection.lock().unwrap().as_ref() {
-            connection.send(message.borrow()).unwrap();
-        }
+        #[cfg(target_os = "emscripten")]
+            js! {
+                TrollInvasion.send(@{message.borrow()});
+            };
+        #[cfg(not(target_os = "emscripten"))]
+            {
+                if let Some(connection) = self.connection.lock().unwrap().as_ref() {
+                    connection.send(message.borrow()).unwrap();
+                }
+            }
     }
 }
 
