@@ -30,6 +30,7 @@ pub struct Game {
     troll_material: codevisual::Material,
     dragging: bool,
     start_drag: Option<Vec2>,
+    randoms: Vec<Vec2<f32>>,
 }
 
 impl Screen for Game {
@@ -72,6 +73,7 @@ impl Game {
             next_frame_time: 0.0,
             app: app.clone(),
             nick,
+            randoms: Vec::new(),
             matrix: Cell::new(Mat4::identity()),
             current_player: String::new(),
             map: Vec::new(),
@@ -164,6 +166,7 @@ impl Game {
         self.next_frame_time -= delta_time;
         if self.next_frame_time < 0.0 {
             if let Some(map) = self.map_queue.pop_front() {
+                if self.map.is_empty() {}
                 self.map = map;
                 self.next_frame_time = 0.1;
             }
@@ -186,13 +189,13 @@ impl Game {
 
     fn projection_matrix(&self) -> Mat4<f32> {
         let aspect = self.app.window().get_size().x as f32 / self.app.window().get_size().y as f32;
-        Mat4::perspective(std::f32::consts::PI / 2.0, aspect, 0.1, 100.0)
+        Mat4::perspective(std::f32::consts::PI / 5.0, aspect, 0.1, 100.0)
     }
 
     fn view_matrix(&self) -> Mat4<f32> {
         let (width, height) = (self.map[0].len() as f32 / 3.0.sqrt(), self.map.len() as f32);
-        Mat4::translate(vec3(0.0, 0.0, -self.camera_dist)) *
-            Mat4::rotate_x(-0.2) *
+        Mat4::translate(vec3(0.0, 0.0, -self.camera_dist * 5.0)) *
+            Mat4::rotate_x(-0.5) *
             Mat4::translate(-self.camera_pos.extend(0.0)) *
             Mat4::scale_uniform(2.0 / max(width, height)) *
             Mat4::translate(vec3(-width / 2.0, -height / 2.0, 0.0))
@@ -207,10 +210,11 @@ impl Game {
                     }), Some(1.0));
         if !self.map.is_empty() {
             self.matrix.set(self.projection_matrix() * self.view_matrix());
+            let mut rnd_index: usize = 0;
             for (i, line) in self.map.iter().enumerate() {
                 for (j, cell) in line.iter().enumerate() {
+                    let center = vec2((j as f32 + 0.5) / 3.0.sqrt(), i as f32 + 0.5);
                     if let Some(cell) = *cell {
-                        let center = vec2((j as f32 + 0.5) / 3.0.sqrt(), i as f32 + 0.5);
                         if self.can_moves.contains(&vec2(i, j)) {
                             self.hex(framebuffer, center, 2.0 / 3.0,
                                      Color::rgba(0.5, 0.5, 0.5, 0.5));
@@ -234,27 +238,43 @@ impl Game {
                                      2.0 / 3.0,
                                      Color::rgb(1.0, 1.0, 1.0));
                         }
-                        self.hex(framebuffer,
-                                 center,
-                                 2.0 / 3.0 - 0.05,
-                                 if self.selected_cell.map_or(false, |pos| pos == vec2(i, j)) {
-                                     Color::rgb(0.5, 0.5, 0.5)
-                                 } else {
-                                     Color::rgb(0.2, 0.2, 0.2)
-                                 });
+                        if self.selected_cell.map_or(false, |pos| pos == vec2(i, j)) {
+                            self.hex(framebuffer,
+                                     center,
+                                     2.0 / 3.0 - 0.05,
+                                     Color::rgb(0.5, 0.5, 0.5));
+                        } else {
+                            self.hex_texture(framebuffer,
+                                             center,
+                                             2.0 / 3.0 - 0.05,
+                                             &resources().ground_texture);
+                        }
+                    } else if (i + j) % 2 == 0 {
+                        self.hex_texture(framebuffer,
+                                         center,
+                                         2.0 / 3.0 - 0.05,
+                                         &resources().grass_texture);
                     }
                 }
             }
             for (i, line) in self.map.iter().enumerate() {
                 for (j, cell) in line.iter().enumerate() {
+                    let center = vec2((j as f32 + 0.5) / 3.0.sqrt(), i as f32 + 0.5);
                     if let Some(cell) = *cell {
-                        let center = vec2((j as f32 + 0.5) / 3.0.sqrt(), i as f32 + 0.5);
                         if let GameCell::Populated { count, owner } = cell {
                             for index in 0..count {
                                 let pos = center + Vec2::rotated(vec2(0.3, 0.0), (index as f32 / count as f32) * 2.0 * std::f32::consts::PI);
                                 let size = 0.05;
                                 self.draw_troll(framebuffer, pos, player_color(owner));
                             }
+                        }
+                    } else if (i + j) % 2 == 0 {
+                        for _ in 0..6 {
+                            while rnd_index >= self.randoms.len() {
+                                self.randoms.push(vec2(random(), random()));
+                            }
+                            self.draw_sprite(framebuffer, center + (self.randoms[rnd_index] * 2.0 - vec2(1.0, 1.0)) * 0.4, Color::WHITE, &resources().tree_texture, vec2(1.0, 2.0) / 5.0, true);
+                            rnd_index += 1;
                         }
                     }
                 }
@@ -405,25 +425,61 @@ impl Game {
                    &self.material.ugli_program(),
                    ugli::DrawMode::TriangleFan,
                    &self.hex_geometry,
-                   uniforms!(u_radius: radius, u_pos: pos, u_color: color, u_matrix: self.matrix.get()),
+                   uniforms! {
+                       u_radius: radius,
+                       u_pos: pos,
+                       u_color: color,
+                       u_matrix: self.matrix.get(),
+                       use_texture: 0.0,
+                   },
                    ugli::DrawParameters {
                        depth_func: None,
                        blend_mode: Some(ugli::BlendMode::Alpha),
                        ..Default::default()
                    });
     }
-    fn draw_troll(&self, framebuffer: &mut ugli::Framebuffer, pos: Vec2<f32>, color: Color) {
+    fn hex_texture(&self, framebuffer: &mut ugli::Framebuffer, pos: Vec2<f32>, radius: f32, texture: &ugli::Texture2d) {
+        ugli::draw(framebuffer,
+                   &self.material.ugli_program(),
+                   ugli::DrawMode::TriangleFan,
+                   &self.hex_geometry,
+                   uniforms! {
+                       u_radius: radius,
+                       u_pos: pos,
+                       u_color: Color::WHITE,
+                       u_matrix: self.matrix.get(),
+                       u_texture: texture,
+                       use_texture: 1.0,
+                   },
+                   ugli::DrawParameters {
+                       depth_func: None,
+                       blend_mode: Some(ugli::BlendMode::Alpha),
+                       ..Default::default()
+                   });
+    }
+    fn draw_sprite(&self, framebuffer: &mut ugli::Framebuffer, pos: Vec2<f32>, color: Color, texture: &ugli::Texture2d, size: Vec2<f32>, up: bool) {
         let proj = self.projection_matrix();
         let view = self.view_matrix();
         ugli::draw(framebuffer,
                    &self.troll_material.ugli_program(),
                    ugli::DrawMode::TriangleFan,
                    &self.quad_geometry,
-                   uniforms!(u_pos: pos, u_color: color, u_projection_matrix: proj, u_view_matrix: view, u_texture: unsafe { &*TROLL_TEXTURE }),
+                   uniforms! {
+                       u_pos: pos,
+                       u_color: color,
+                       u_projection_matrix: proj,
+                       u_view_matrix: view,
+                       u_texture: texture,
+                       u_size: size,
+                       u_up: if up { 1.0f32 } else { 0.0f32 },
+                   },
                    ugli::DrawParameters {
                        depth_func: Some(default()),
                        blend_mode: Some(ugli::BlendMode::Alpha),
                        ..Default::default()
                    });
+    }
+    fn draw_troll(&self, framebuffer: &mut ugli::Framebuffer, pos: Vec2<f32>, color: Color) {
+        self.draw_sprite(framebuffer, pos, color, &resources().troll_texture, vec2(1.0, 1.0), false);
     }
 }

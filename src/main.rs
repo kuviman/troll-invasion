@@ -26,7 +26,11 @@ lazy_static! {
     static ref RECEIVER: Mutex<Option<connection::Receiver>> = Mutex::new(None);
 }
 
-static mut TROLL_TEXTURE: *const ugli::Texture2d = 0 as _;
+static mut RESOURCES: *const Resources = 0 as _;
+
+fn resources() -> &'static Resources {
+    unsafe { &*RESOURCES }
+}
 
 struct TrollInvasion {
     screen: Box<screen::Screen>,
@@ -36,6 +40,12 @@ struct TrollInvasion {
 struct Resources {
     #[path = "data/troll.png"]
     troll_texture: ugli::Texture2d,
+    #[path = "data/ground.jpg"]
+    ground_texture: ugli::Texture2d,
+    #[path = "data/grass.jpg"]
+    grass_texture: ugli::Texture2d,
+    #[path = "data/tree.png"]
+    tree_texture: ugli::Texture2d,
 }
 
 impl codevisual::Game for TrollInvasion {
@@ -67,9 +77,10 @@ impl codevisual::Game for TrollInvasion {
             self.screen = screen;
         }
     }
-    fn new(app: &Rc<codevisual::App>, resources: Self::Resources) -> Self {
-        let troll_texture = Box::new(resources.troll_texture);
-        unsafe { TROLL_TEXTURE = Box::into_raw(troll_texture); }
+    fn new(app: &Rc<codevisual::App>, mut resources: Resources) -> Self {
+        resources.ground_texture.set_wrap_mode(ugli::WrapMode::Repeat);
+        resources.grass_texture.set_wrap_mode(ugli::WrapMode::Repeat);
+        unsafe { RESOURCES = Box::into_raw(Box::new(resources)); }
         Self {
             screen: Box::new(NicknameScreen::new(app)),
         }
