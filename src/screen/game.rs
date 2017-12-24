@@ -18,10 +18,12 @@ pub struct Game {
     material: codevisual::Material,
     app: Rc<codevisual::App>,
     current_player: String,
+    matrix: Cell<Mat4<f32>>,
     energy_left: Option<usize>,
     selected_cell: Option<Vec2<usize>>,
     hovered_cell: Option<Vec2<usize>>,
-    matrix: std::cell::Cell<Mat4<f32>>,
+    camera_pos: Vec2<f32>,
+    camera_dist: f32,
     can_moves: Vec<Vec2<usize>>,
     sender: connection::Sender,
 }
@@ -64,12 +66,12 @@ impl Game {
             next_frame_time: 0.0,
             app: app.clone(),
             nick,
+            matrix: Cell::new(Mat4::identity()),
             current_player: String::new(),
             map: Vec::new(),
             next_map: Vec::new(),
             selected_cell: None,
             material: codevisual::Material::new(app.ugli_context(), (), (), include_str!("shader.glsl")),
-            matrix: std::cell::Cell::new(Mat4::identity()),
             hex_geometry: ugli::VertexBuffer::new_static(app.ugli_context(), {
                 let mut vs = Vec::new();
                 for i in 0..6 {
@@ -85,6 +87,8 @@ impl Game {
             player_colors: HashMap::new(),
             player_hovers: HashMap::new(),
             map_queue: std::collections::VecDeque::new(),
+            camera_pos: vec2(0.0, 0.0),
+            camera_dist: 1.5,
         }
     }
 
@@ -152,6 +156,20 @@ impl Game {
                 self.next_frame_time = 0.1;
             }
         }
+        let mut dv: Vec2<f32> = vec2(0.0, 0.0);
+        if self.app.window().is_key_pressed(codevisual::Key::W) {
+            dv.y += 1.0;
+        }
+        if self.app.window().is_key_pressed(codevisual::Key::A) {
+            dv.x -= 1.0;
+        }
+        if self.app.window().is_key_pressed(codevisual::Key::S) {
+            dv.y -= 1.0;
+        }
+        if self.app.window().is_key_pressed(codevisual::Key::D) {
+            dv.x += 1.0;
+        }
+        self.camera_pos += dv * delta_time as f32;
     }
 
     fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
@@ -164,8 +182,11 @@ impl Game {
         if !self.map.is_empty() {
             let (width, height) = (self.map[0].len() as f32 / 3.0.sqrt(), self.map.len() as f32);
             let aspect = self.app.window().get_size().x as f32 / self.app.window().get_size().y as f32;
-            self.matrix.set(Mat4::scale_uniform(2.0 / max(width, height)) *
-                Mat4::scale(vec3(1.0 / aspect, -1.0, 1.0) * 0.8) *
+            self.matrix.set(Mat4::perspective(std::f32::consts::PI / 2.0, aspect, 0.1, 100.0) *
+                Mat4::translate(vec3(0.0, 0.0, -self.camera_dist)) *
+                Mat4::rotate_x(-0.2) *
+                Mat4::translate(-self.camera_pos.extend(0.0)) *
+                Mat4::scale_uniform(2.0 / max(width, height)) *
                 Mat4::translate(vec3(-width / 2.0, -height / 2.0, 0.0)));
             for (i, line) in self.map.iter().enumerate() {
                 for (j, cell) in line.iter().enumerate() {
@@ -297,14 +318,16 @@ impl Game {
                     self.hovered_cell = cell;
                 }
             }
+            codevisual::Event::Wheel { delta } => {
+                self.camera_dist = clamp(self.camera_dist * (1.0 + delta as f32 / 1000.0), 0.3, 3.0);
+            }
             _ => {}
         }
     }
     fn find_pos(&self, pos: Vec2<f32>) -> Option<Vec2<usize>> {
         let pos = vec2((pos.x * 2.0 / self.app.window().get_size().x as f32 - 1.0),
                        (1.0 - pos.y * 2.0 / self.app.window().get_size().y as f32));
-        let pos = self.matrix.get().inverse() * pos.extend(0.0).extend(1.0);
-        let pos = vec2(pos.x, pos.y);
+        let matrix = self.matrix.get();
         for (i, line) in self.map.iter().enumerate() {
             for (j, cell) in line.iter().enumerate() {
                 if let Some(cell) = *cell {
@@ -313,6 +336,10 @@ impl Game {
                     for i in 0..6 {
                         let p1 = self.hex_geometry[i].a_pos * 2.0 / 3.0 + center;
                         let p2 = self.hex_geometry[(i + 1) % 6].a_pos * 2.0 / 3.0 + center;
+                        let p1 = matrix * p1.extend(0.0).extend(1.0);
+                        let p1 = vec2(p1.x / p1.w, p1.y / p1.w);
+                        let p2 = matrix * p2.extend(0.0).extend(1.0);
+                        let p2 = vec2(p2.x / p2.w, p2.y / p2.w);
                         if Vec2::cross(p2 - p1, pos - p1) < 0.0 {
                             inside = false;
                             break;
