@@ -28,6 +28,8 @@ pub struct Game {
     can_moves: Vec<Vec2<usize>>,
     sender: connection::Sender,
     troll_material: codevisual::Material,
+    dragging: bool,
+    start_drag: Option<Vec2>,
 }
 
 impl Screen for Game {
@@ -63,6 +65,8 @@ const STATUS_OFFSET: f32 = 2.0;
 impl Game {
     pub fn new(app: &Rc<codevisual::App>, nick: String, sender: connection::Sender) -> Self {
         Self {
+            dragging: false,
+            start_drag: None,
             can_moves: Vec::new(),
             hovered_cell: None,
             next_frame_time: 0.0,
@@ -314,8 +318,11 @@ impl Game {
     fn handle_event(&mut self, event: codevisual::Event) {
         let window_size = self.app.window().get_size();
         match event {
-            codevisual::Event::MouseDown { button: codevisual::MouseButton::Left, position: pos } => {
-                if self.leave_rect_hover() {
+            codevisual::Event::MouseUp { button: codevisual::MouseButton::Left, position: pos } => {
+                self.start_drag = None;
+                if self.dragging {
+                    self.dragging = false;
+                } else if self.leave_rect_hover() {
                     self.sender.send("leaveGame");
                 } else if self.status_hover() {
                     self.sender.send("next phase");
@@ -325,23 +332,41 @@ impl Game {
                     }
                 }
             }
+            codevisual::Event::MouseDown { button: codevisual::MouseButton::Left, position: pos } => {
+                self.start_drag = Some(pos);
+            }
             codevisual::Event::MouseDown { button: codevisual::MouseButton::Right, position: pos } => {
                 if let Some(Vec2 { x, y }) = self.find_pos(vec2(pos.x as f32, pos.y as f32)) {
                     self.sender.send(format!("fullUp {} {}", x, y));
                 }
             }
             codevisual::Event::MouseMove { position: pos } => {
-                let cell = self.find_pos(vec2(pos.x as f32, pos.y as f32));
-                if self.hovered_cell != cell {
-                    self.sender.send(match cell {
-                        None => format!("hover none"),
-                        Some(pos) => format!("hover {} {}", pos.x, pos.y),
-                    });
-                    self.hovered_cell = cell;
+                let mut captured = false;
+                if let Some(start) = self.start_drag {
+                    if self.dragging {
+                        let dv = (pos - start) / self.app.window().get_size().y as f64 * 2.0 * self.camera_dist as f64;
+                        self.camera_pos.x -= dv.x as f32;
+                        self.camera_pos.y += dv.y as f32;
+                        self.start_drag = Some(pos);
+                        captured = true;
+                    } else if (start - pos).len() > 10.0 {
+                        self.dragging = true;
+                        captured = true;
+                    }
+                }
+                if !captured {
+                    let cell = self.find_pos(vec2(pos.x as f32, pos.y as f32));
+                    if self.hovered_cell != cell {
+                        self.sender.send(match cell {
+                            None => format!("hover none"),
+                            Some(pos) => format!("hover {} {}", pos.x, pos.y),
+                        });
+                        self.hovered_cell = cell;
+                    }
                 }
             }
             codevisual::Event::Wheel { delta } => {
-                self.camera_dist = clamp(self.camera_dist * (1.0 + delta as f32 / 1000.0), 0.3, 3.0);
+                self.camera_dist = clamp(self.camera_dist * (1.0 - delta as f32 / 1000.0), 0.3, 3.0);
             }
             _ => {}
         }
