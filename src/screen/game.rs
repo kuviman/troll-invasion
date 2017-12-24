@@ -31,6 +31,7 @@ pub struct Game {
     dragging: bool,
     start_drag: Option<Vec2>,
     randoms: Vec<Vec2<f32>>,
+    menu: MenuScreen,
 }
 
 impl Screen for Game {
@@ -73,6 +74,7 @@ impl Game {
             next_frame_time: 0.0,
             app: app.clone(),
             nick,
+            menu: MenuScreen::new(app, vec![]),
             randoms: Vec::new(),
             matrix: Cell::new(Mat4::identity()),
             current_player: String::new(),
@@ -194,7 +196,7 @@ impl Game {
 
     fn view_matrix(&self) -> Mat4<f32> {
         let (width, height) = (self.map[0].len() as f32 / 3.0.sqrt(), self.map.len() as f32);
-        Mat4::translate(vec3(0.0, 0.0, -self.camera_dist * 5.0)) *
+        Mat4::translate(vec3(0.0, 0.0, -self.camera_dist * 2.5)) *
             Mat4::rotate_x(-0.5) *
             Mat4::translate(-self.camera_pos.extend(0.0)) *
             Mat4::scale_uniform(2.0 / max(width, height)) *
@@ -282,6 +284,9 @@ impl Game {
         }
 
         let framebuffer_size = framebuffer.get_size();
+
+        self.menu.draw_rect(framebuffer, vec2(-1.0, -1.0), vec2(1.0, -0.8), Color::BLACK);
+        self.menu.draw_rect(framebuffer, vec2(0.85, 0.9), vec2(1.0, 1.0), Color::BLACK);
 
         let unit = framebuffer_size.y as f32 / 100.0;
         self.font.draw_aligned(
