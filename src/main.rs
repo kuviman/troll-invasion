@@ -26,12 +26,20 @@ lazy_static! {
     static ref RECEIVER: Mutex<Option<connection::Receiver>> = Mutex::new(None);
 }
 
+static mut TROLL_TEXTURE: *const ugli::Texture2d = 0 as _;
+
 struct TrollInvasion {
     screen: Box<screen::Screen>,
 }
 
+#[derive(Resources)]
+struct Resources {
+    #[path = "data/troll.png"]
+    troll_texture: ugli::Texture2d,
+}
+
 impl codevisual::Game for TrollInvasion {
-    type Resources = ();
+    type Resources = Resources;
     fn get_title() -> String {
         String::from("Troll invasion")
     }
@@ -60,6 +68,8 @@ impl codevisual::Game for TrollInvasion {
         }
     }
     fn new(app: &Rc<codevisual::App>, resources: Self::Resources) -> Self {
+        let troll_texture = Box::new(resources.troll_texture);
+        unsafe { TROLL_TEXTURE = Box::into_raw(troll_texture); }
         Self {
             screen: Box::new(NicknameScreen::new(app)),
         }

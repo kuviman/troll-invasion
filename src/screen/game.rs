@@ -9,6 +9,7 @@ pub struct Game {
     nick: String,
     font: codevisual::Font,
     hex_geometry: ugli::VertexBuffer<Vertex>,
+    quad_geometry: ugli::VertexBuffer<Vertex>,
     player_colors: HashMap<String, char>,
     player_hovers: HashMap<String, Vec2<usize>>,
     map: Vec<Vec<Option<GameCell>>>,
@@ -26,6 +27,7 @@ pub struct Game {
     camera_dist: f32,
     can_moves: Vec<Vec2<usize>>,
     sender: connection::Sender,
+    troll_material: codevisual::Material,
 }
 
 impl Screen for Game {
@@ -72,6 +74,7 @@ impl Game {
             next_map: Vec::new(),
             selected_cell: None,
             material: codevisual::Material::new(app.ugli_context(), (), (), include_str!("shader.glsl")),
+            troll_material: codevisual::Material::new(app.ugli_context(), (), (), include_str!("troll.glsl")),
             hex_geometry: ugli::VertexBuffer::new_static(app.ugli_context(), {
                 let mut vs = Vec::new();
                 for i in 0..6 {
@@ -81,6 +84,11 @@ impl Game {
                 }
                 vs
             }),
+            quad_geometry: ugli::VertexBuffer::new_static(app.ugli_context(), vec![
+                Vertex { a_pos: vec2(-1.0, 0.0) },
+                Vertex { a_pos: vec2(1.0, 0.0) },
+                Vertex { a_pos: vec2(1.0, 2.0) },
+                Vertex { a_pos: vec2(-1.0, 2.0) }, ]),
             energy_left: None,
             sender,
             font: codevisual::Font::new(app.ugli_context(), (include_bytes!("font.ttf") as &[u8]).to_owned()),
@@ -172,22 +180,29 @@ impl Game {
         self.camera_pos += dv * delta_time as f32;
     }
 
+    fn projection_matrix(&self) -> Mat4<f32> {
+        let aspect = self.app.window().get_size().x as f32 / self.app.window().get_size().y as f32;
+        Mat4::perspective(std::f32::consts::PI / 2.0, aspect, 0.1, 100.0)
+    }
+
+    fn view_matrix(&self) -> Mat4<f32> {
+        let (width, height) = (self.map[0].len() as f32 / 3.0.sqrt(), self.map.len() as f32);
+        Mat4::translate(vec3(0.0, 0.0, -self.camera_dist)) *
+            Mat4::rotate_x(-0.2) *
+            Mat4::translate(-self.camera_pos.extend(0.0)) *
+            Mat4::scale_uniform(2.0 / max(width, height)) *
+            Mat4::translate(vec3(-width / 2.0, -height / 2.0, 0.0))
+    }
+
     fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
         ugli::clear(framebuffer,
                     Some(if self.nick == self.current_player {
                         Color::rgb(0.0, 0.1, 0.0)
                     } else {
                         Color::rgb(0.1, 0.0, 0.0)
-                    }), None);
+                    }), Some(1.0));
         if !self.map.is_empty() {
-            let (width, height) = (self.map[0].len() as f32 / 3.0.sqrt(), self.map.len() as f32);
-            let aspect = self.app.window().get_size().x as f32 / self.app.window().get_size().y as f32;
-            self.matrix.set(Mat4::perspective(std::f32::consts::PI / 2.0, aspect, 0.1, 100.0) *
-                Mat4::translate(vec3(0.0, 0.0, -self.camera_dist)) *
-                Mat4::rotate_x(-0.2) *
-                Mat4::translate(-self.camera_pos.extend(0.0)) *
-                Mat4::scale_uniform(2.0 / max(width, height)) *
-                Mat4::translate(vec3(-width / 2.0, -height / 2.0, 0.0)));
+            self.matrix.set(self.projection_matrix() * self.view_matrix());
             for (i, line) in self.map.iter().enumerate() {
                 for (j, cell) in line.iter().enumerate() {
                     if let Some(cell) = *cell {
@@ -223,11 +238,18 @@ impl Game {
                                  } else {
                                      Color::rgb(0.2, 0.2, 0.2)
                                  });
+                    }
+                }
+            }
+            for (i, line) in self.map.iter().enumerate() {
+                for (j, cell) in line.iter().enumerate() {
+                    if let Some(cell) = *cell {
+                        let center = vec2((j as f32 + 0.5) / 3.0.sqrt(), i as f32 + 0.5);
                         if let GameCell::Populated { count, owner } = cell {
                             for index in 0..count {
                                 let pos = center + Vec2::rotated(vec2(0.3, 0.0), (index as f32 / count as f32) * 2.0 * std::f32::consts::PI);
                                 let size = 0.05;
-                                self.hex(framebuffer, pos, size, player_color(owner));
+                                self.draw_troll(framebuffer, pos, player_color(owner));
                             }
                         }
                     }
@@ -361,6 +383,20 @@ impl Game {
                    uniforms!(u_radius: radius, u_pos: pos, u_color: color, u_matrix: self.matrix.get()),
                    ugli::DrawParameters {
                        depth_func: None,
+                       blend_mode: Some(ugli::BlendMode::Alpha),
+                       ..Default::default()
+                   });
+    }
+    fn draw_troll(&self, framebuffer: &mut ugli::Framebuffer, pos: Vec2<f32>, color: Color) {
+        let proj = self.projection_matrix();
+        let view = self.view_matrix();
+        ugli::draw(framebuffer,
+                   &self.troll_material.ugli_program(),
+                   ugli::DrawMode::TriangleFan,
+                   &self.quad_geometry,
+                   uniforms!(u_pos: pos, u_color: color, u_projection_matrix: proj, u_view_matrix: view, u_texture: unsafe { &*TROLL_TEXTURE }),
+                   ugli::DrawParameters {
+                       depth_func: Some(default()),
                        blend_mode: Some(ugli::BlendMode::Alpha),
                        ..Default::default()
                    });
